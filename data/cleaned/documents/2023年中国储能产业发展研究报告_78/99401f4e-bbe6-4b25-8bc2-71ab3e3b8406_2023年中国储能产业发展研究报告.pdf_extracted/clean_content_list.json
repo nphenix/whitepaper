@@ -1,0 +1,3157 @@
+[
+  {
+    "type": "text",
+    "text": "2023年中国储能产业发展研究报告",
+    "text_level": 1,
+    "bbox": [
+      207,
+      403,
+      791,
+      479
+    ],
+    "page_idx": 0
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      20,
+      25,
+      130,
+      81
+    ],
+    "page_idx": 0
+  },
+  {
+    "type": "text",
+    "text": "01 储能市场概览",
+    "text_level": 1,
+    "bbox": [
+      454,
+      83,
+      625,
+      124
+    ],
+    "page_idx": 1
+  },
+  {
+    "type": "text",
+    "text": "02 中国储能产业发展现状",
+    "text_level": 1,
+    "bbox": [
+      454,
+      329,
+      708,
+      372
+    ],
+    "page_idx": 1
+  },
+  {
+    "type": "text",
+    "text": "03 中国储能应用案例",
+    "text_level": 1,
+    "bbox": [
+      454,
+      529,
+      666,
+      572
+    ],
+    "page_idx": 1
+  },
+  {
+    "type": "text",
+    "text": "04 中国储能未来发展趋势",
+    "text_level": 1,
+    "bbox": [
+      454,
+      753,
+      708,
+      796
+    ],
+    "page_idx": 1
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      46,
+      42,
+      128,
+      75
+    ],
+    "page_idx": 1
+  },
+  {
+    "type": "text",
+    "text": "01 储能市场概览",
+    "text_level": 1,
+    "bbox": [
+      454,
+      83,
+      625,
+      122
+    ],
+    "page_idx": 2
+  },
+  {
+    "type": "text",
+    "text": "02 中国储能产业发展现状",
+    "text_level": 1,
+    "bbox": [
+      454,
+      331,
+      707,
+      370
+    ],
+    "page_idx": 2
+  },
+  {
+    "type": "text",
+    "text": "03 中国储能应用案例",
+    "text_level": 1,
+    "bbox": [
+      454,
+      531,
+      665,
+      570
+    ],
+    "page_idx": 2
+  },
+  {
+    "type": "text",
+    "text": "04 中国储能未来发展趋势",
+    "text_level": 1,
+    "bbox": [
+      454,
+      755,
+      707,
+      796
+    ],
+    "page_idx": 2
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      46,
+      42,
+      128,
+      74
+    ],
+    "page_idx": 2
+  },
+  {
+    "type": "text",
+    "text": "电能储能包含机械、化学及电磁等众多技术路线，已有成熟技术进入大规模商业化阶段",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      816,
+      72
+    ],
+    "page_idx": 3
+  },
+  {
+    "type": "image",
+    "img_path": "images/0439d1639b250f586ffd2e958f56c19dc90c477059f804e3342911085d867d42.jpg",
+    "image_caption": [
+      "亿欧智库：储能广义分类"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      36,
+      316,
+      486,
+      953
+    ],
+    "page_idx": 3
+  },
+  {
+    "type": "image",
+    "img_path": "images/a59d85a07da2a31504955e22624822e83155a8a1459653c2efa1843777dc89de.jpg",
+    "image_caption": [
+      "亿欧智库：储能技术发展曲线"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      522,
+      318,
+      970,
+      931
+    ],
+    "page_idx": 3
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 3
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 3
+  },
+  {
+    "type": "text",
+    "text": "实现碳中和成为全球共识，发展储能技术是推进能源结构转型的必要条件",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      692,
+      72
+    ],
+    "page_idx": 4
+  },
+  {
+    "type": "image",
+    "img_path": "images/8592da4c4a3d25fa90851a4b67d8512dd48965b614081ea01bb3feeba60b7e47.jpg",
+    "image_caption": [
+      "亿欧智库：全球VRE发电占比将提升至  $15\\%$"
+    ],
+    "image_footnote": [
+      "注：VRE (variable renewable energy) 可控可再生能源"
+    ],
+    "bbox": [
+      28,
+      320,
+      491,
+      914
+    ],
+    "page_idx": 4
+  },
+  {
+    "type": "table",
+    "img_path": "images/88ce9c86b613b3e657ebb620e2cf2a70fa23c117cdd85ddb8cbb2d9acb85606e.jpg",
+    "table_caption": [
+      "亿欧智库：VRE发电渗透率越高对电力系统的灵活性要求越高"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>阶段</td><td>VRE发电量渗透率</td><td>对电力系统灵活性的影响</td></tr><tr><td>第一阶段</td><td>0-3%</td><td>·对系统基本没有影响; ·在发电厂的并网点产生极少的局部影响。</td></tr><tr><td>第二阶段</td><td>3-13%</td><td>·负荷与净负荷之间的变化日益明显; ·需要改进系统运行方式,更充分地利用现有系统灵活性资源。</td></tr><tr><td>第三阶段</td><td>13-24%</td><td>·供需平衡难度加大,需要系统性地提高电力系统灵活性; ·现有设施和改进运行方式难以满足灵活性需求,需要对新的灵活性进行投资。</td></tr><tr><td>第四阶段</td><td>23-50%</td><td>·某些时段,VRE发电量足以提供大部分电力需求; ·系统运行需要加强受到扰动后迅造响应的能力; ·VRE也要摄供频率响应服务,如一次调频和二次调频。</td></tr><tr><td>第五阶段</td><td>50%以上</td><td>·VRE发电量经常超过电力需求,出现负净负荷的结构性过则; ·某些时段完全由VRE供应,不需要火电提供负荷; ·需要转移用电需求,以及通过电气化创造新需求增加与相邻系统的电力交换。</td></tr><tr><td>第六阶段</td><td>50%以上</td><td>·主要挑战是在风能和太阳能可用率持续较低时(比如数周)如何满足电力需求; ·需要季节性储能,以及应用氢等合成燃料。</td></tr></table>",
+    "bbox": [
+      508,
+      322,
+      966,
+      944
+    ],
+    "page_idx": 4
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 4
+  },
+  {
+    "type": "text",
+    "text": "全球新型储能市场依然由美国、中国和欧洲三大市场引领",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      547,
+      72
+    ],
+    "page_idx": 5
+  },
+  {
+    "type": "text",
+    "text": "从2021年全球新增投运新型储能项目总体来看，美国、中国、欧洲三大市场占据总体市场的  $80\\%$  ，其中美国占比  $34\\%$  ，中国占比  $24\\%$  ，欧洲占比  $22\\%$  。值得注意的是，抽水蓄能、电化学储能（电网级）储能市场由中美主导。",
+    "bbox": [
+      20,
+      103,
+      971,
+      170
+    ],
+    "page_idx": 5
+  },
+  {
+    "type": "image",
+    "img_path": "images/0a6cb933b05aacbd37ed2eeb89c1320c42410244ca06a6f55e7d8b848ae995e9.jpg",
+    "image_caption": [
+      "亿欧智库：2021年全球新增投运新型储能项目各地区功率分布（MW）"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      52,
+      281,
+      860,
+      907
+    ],
+    "page_idx": 5
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 5
+  },
+  {
+    "type": "text",
+    "text": "全球新型储能市场增速可观，抽水蓄能仍是主要储能方式",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      547,
+      72
+    ],
+    "page_idx": 6
+  },
+  {
+    "type": "text",
+    "text": "根据CNESA数据，截至2021年底，全球已投运的（电力）储能项目累计装机规模209.4GW，相较于五年前增长  $19\\%$  。抽水蓄能占比高，涨幅较小；储能的增长几乎全部来自于新型储能，五年间占比已达  $12.2\\%$  。其中电化学储能为增长主力军，从2017年的2.9GW增长至如今的23GW，占据新型储能市场  $90\\%$  以上的份额。",
+    "bbox": [
+      20,
+      103,
+      971,
+      200
+    ],
+    "page_idx": 6
+  },
+  {
+    "type": "image",
+    "img_path": "images/46b4b7a0e9723a7fbf6fa993670899a0d695fc8b485d197116d6f8addc6cbead.jpg",
+    "image_caption": [
+      "亿欧智库：2017年-2022年全球储能累计装机规模"
+    ],
+    "image_footnote": [
+      "数据来源：CNESA；亿欧智库"
+    ],
+    "bbox": [
+      33,
+      320,
+      486,
+      940
+    ],
+    "page_idx": 6
+  },
+  {
+    "type": "image",
+    "img_path": "images/5126f61bbd1e71149b0cd1b66d5f8dc7d48f8a796aaef880de72b682febce4d9.jpg",
+    "image_caption": [
+      "亿欧智库：2017年-2025E年全球储能市场规模（按新增装机容量计）"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      512,
+      320,
+      963,
+      935
+    ],
+    "page_idx": 6
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      870,
+      25,
+      981,
+      79
+    ],
+    "page_idx": 6
+  },
+  {
+    "type": "text",
+    "text": "中国双碳战略目标下能源结构转型加速，储能需求爆发在即",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      566,
+      72
+    ],
+    "page_idx": 7
+  },
+  {
+    "type": "image",
+    "img_path": "images/b793b03f6abe6e4de495e483d7e1cddb2e275210ee88eded17e2cc5c4122568a.jpg",
+    "image_caption": [
+      "亿欧智库：中国可再生能源发电占比将提升至20%"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      29,
+      400,
+      488,
+      916
+    ],
+    "page_idx": 7
+  },
+  {
+    "type": "image",
+    "img_path": "images/e2dc159c4da41f9d011427b7b0b9d45b6e7a8bf4922a5275714de1843dccc323.jpg",
+    "image_caption": [
+      "亿欧智库：2017年-2021年中国可再生能源装机量增长64%"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      507,
+      381,
+      972,
+      950
+    ],
+    "page_idx": 7
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 7
+  },
+  {
+    "type": "text",
+    "text": "近几年，国家层面储能政策高密度出台，助力行业发展",
+    "text_level": 1,
+    "bbox": [
+      17,
+      27,
+      525,
+      72
+    ],
+    "page_idx": 8
+  },
+  {
+    "type": "image",
+    "img_path": "images/7c1514a65e3fb4e021e3e0963b31e460436cd0e77d0b663720d71a7ec4b9fc31.jpg",
+    "image_caption": [
+      "亿欧智库：2016-2022年储能配套政策不断完善"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      30,
+      325,
+      722,
+      951
+    ],
+    "page_idx": 8
+  },
+  {
+    "type": "image",
+    "img_path": "images/b3a8faed4e41d8c349c55059c1a84fe186ebca1300caa851a7e5ed0575907bda.jpg",
+    "image_caption": [
+      "亿欧智库：中国储能发展阶段"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      728,
+      327,
+      969,
+      951
+    ],
+    "page_idx": 8
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 8
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      18,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 8
+  },
+  {
+    "type": "text",
+    "text": "中国储能技术的水平快速提升，多数储能技术水平世界领先",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      566,
+      72
+    ],
+    "page_idx": 9
+  },
+  {
+    "type": "image",
+    "img_path": "images/8805e0e92ed03a8605d2662263f9d9bc29c0cf2e5e0e9fb4b5c4fa4b8ba17f04.jpg",
+    "image_caption": [
+      "亿欧智库：中国和世界主要储能技术水平对比"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      38,
+      350,
+      495,
+      931
+    ],
+    "page_idx": 9
+  },
+  {
+    "type": "table",
+    "img_path": "images/895ded38c1e893fa155e5a8b564512b2544194bf2b4b35e412369a49f0d86268.jpg",
+    "table_caption": [
+      "亿欧智库：中国在主要储能技术上的研发和应用进展"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>储能技术</td><td>中国研发和应用进展</td></tr><tr><td>抽水储能</td><td>超高水头、超大容量抽水蓄能实现了跨越式发展，定速抽蓄世界领先，变速抽蓄与国外有较大差距。</td></tr><tr><td>压缩空气</td><td>10-100MW储能系统取得里程碑式进展，张家口首套100MW压缩空气储能项目达到世界引领水平。</td></tr><tr><td>储热储冷</td><td>高温熔盐储热、大容量跨季节储热和储冷、热泵储热、卡诺电池以及电化学储热是当前储热研究的热点。</td></tr><tr><td>飞轮储能</td><td>大容器功率型飞轮储能取得阶段性进展，缩小了与国际先进水平的差距，为10MW以上项目应用奠定基础。</td></tr><tr><td>铅蓄电池</td><td>技术研发主要集中在铅炭电池，通过在负极添加高活性的碳材料，抑制负极硫酸盐化引起的容量快速衰减。</td></tr><tr><td>锂离子电池</td><td>正负极材料、快充技术、固态电池等取得重要突破，锂补偿技术、无模组技术和刀片电池是技术进展亮点。</td></tr><tr><td>液流电池</td><td>全钒液流电池是主流技术，解决规模化、成本、效率等问题是研究热点，锌溴、铁铬液流电池正在探索。</td></tr><tr><td>钠离子电池</td><td>最接近锂离子电池的电池技术，基础研究、技术水平和集成示范均取得重要进展，已处于国际领先水平。</td></tr><tr><td>超级电容器</td><td>在关键材料、单体技术、成组管控、系统集成与应用和使役性能进行全链条技术攻关，并实现规模示范。</td></tr><tr><td>新型储能</td><td>研究重点是液态金属电池、多价金属离子电池和水系电池的材料研究，相关单体、模组等正在深入研究。</td></tr></table>",
+    "bbox": [
+      507,
+      340,
+      957,
+      929
+    ],
+    "page_idx": 9
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      74
+    ],
+    "page_idx": 9
+  },
+  {
+    "type": "text",
+    "text": "抽水蓄能仍是中国主要储能技术，新型储能技术中电化学增速迅猛",
+    "text_level": 1,
+    "bbox": [
+      17,
+      27,
+      630,
+      72
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "text",
+    "text": "根据CNESA全球储能项目库的不完全统计，截至2021年底，中国已投运电力储能项目累计装机规模46.1GW，占全球市场总规模的  $22\\%$  ，同比增长  $30\\%$  。其中，抽水蓄能的累计装机规模最大（占比  $86.3\\%$  ），为39.8GW；市场增量主要来自电化学储能，累计装机规模达到5729.7MW，同比增长  $75\\%$  。",
+    "bbox": [
+      20,
+      105,
+      977,
+      200
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "image",
+    "img_path": "images/e6cd72b8261cc21eb05ecbee2b09777fd2fbbb599405c6290cb554cae75aa113.jpg",
+    "image_caption": [
+      "亿欧智库：2021年中国储能技术占比"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      28,
+      312,
+      486,
+      833
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "image",
+    "img_path": "images/d155704c82261f80d986a034b9af801702b401068f209d30b66e2ba88a0ac8e1.jpg",
+    "image_caption": [
+      "亿欧智库：中国电化学储能市场累计装机规模"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      502,
+      312,
+      975,
+      870
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：CNESA；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      150,
+      975
+    ],
+    "page_idx": 10
+  },
+  {
+    "type": "text",
+    "text": "经济性与安全性是制约中国储能产业发展的核心因素",
+    "text_level": 1,
+    "bbox": [
+      17,
+      27,
+      503,
+      72
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "table",
+    "img_path": "images/5007895526e756f00df065256c44af1a477faa7004b7a482830267cd85117e69.jpg",
+    "table_caption": [
+      "亿欧智库：成熟储能技术优缺点对比"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td></td><td>抽水蓄能</td><td>压缩空气储能</td><td>飞轮储能</td><td>锂电子电池</td></tr><tr><td>优点</td><td>·可靠性高\n·经济性高\n·寿命长\n·容量大\n·技术成熟</td><td>·经济性高</td><td>·寿命长\n·充放电次数高\n·响应速度快\n·功率变化能力快</td><td>·比能量高\n·技术成熟\n·响应速度快\n·效率高</td></tr><tr><td>缺点</td><td>·选址依赖地理条件\n·投资额高</td><td>·能量转换损耗导致效率偏低</td><td>·度电成本高</td><td>·价格高\n·存在发热问题</td></tr><tr><td>应用场景</td><td>·调峰\n·调频\n·事故备用</td><td>·调峰且适用于大规模风场</td><td>·UPS\n·电网调频</td><td>·调峰\n·调频\n·备用容量</td></tr></table>",
+    "bbox": [
+      35,
+      331,
+      491,
+      742
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "text",
+    "text": "机械储能存在一定外部制约因素，电化学储能经济性提升降低LCOS是关键",
+    "bbox": [
+      41,
+      761,
+      453,
+      790
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "text",
+    "text": "Capex+Opex-残值 更长的循环寿命 LCOS= 循环寿命*系统能量效率 更高的系统效率 更低的资本投入",
+    "bbox": [
+      88,
+      818,
+      456,
+      901
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "table",
+    "img_path": "images/9770b6d6917d9b3c4b2c120b12cfcad55b5a0a981e9cfbe916a748dfdca0ffad.jpg",
+    "table_caption": [
+      "亿欧智库：2019-2022年储能项目部分重大事故"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>国家</td><td>事故时间</td><td>事故类型</td><td>储能技术</td><td>装机容量（MWh）</td></tr><tr><td>美国</td><td>2022</td><td>充电中</td><td>三元锂电池</td><td>182.5</td></tr><tr><td>韩国</td><td>2022</td><td>充电中</td><td>三元锂电池</td><td>1.5</td></tr><tr><td>澳大利亚</td><td>2021</td><td>冷却液泄露导致电池单体热失控</td><td>三元锂电池</td><td>450</td></tr><tr><td>中国</td><td>2021</td><td>充电中</td><td>磷酸铁锂电池</td><td>25</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>1.027</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>3.66</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>46.757</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>2.496</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>5.22</td></tr><tr><td>韩国</td><td>2019</td><td>充电后休止</td><td>三元锂电池</td><td>3.289</td></tr></table>",
+    "bbox": [
+      511,
+      331,
+      956,
+      931
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      153,
+      975
+    ],
+    "page_idx": 11
+  },
+  {
+    "type": "text",
+    "text": "01 储能市场概览",
+    "text_level": 1,
+    "bbox": [
+      454,
+      83,
+      625,
+      124
+    ],
+    "page_idx": 12
+  },
+  {
+    "type": "text",
+    "text": "02 中国储能产业发展现状",
+    "text_level": 1,
+    "bbox": [
+      454,
+      305,
+      709,
+      348
+    ],
+    "page_idx": 12
+  },
+  {
+    "type": "text",
+    "text": "03 中国储能应用案例",
+    "text_level": 1,
+    "bbox": [
+      454,
+      531,
+      666,
+      572
+    ],
+    "page_idx": 12
+  },
+  {
+    "type": "text",
+    "text": "04 中国储能未来发展趋势",
+    "text_level": 1,
+    "bbox": [
+      454,
+      755,
+      708,
+      796
+    ],
+    "page_idx": 12
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      46,
+      42,
+      128,
+      75
+    ],
+    "page_idx": 12
+  },
+  {
+    "type": "text",
+    "text": "中国储能市场产业图谱",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      233,
+      72
+    ],
+    "page_idx": 13
+  },
+  {
+    "type": "image",
+    "img_path": "images/00db87f137bd78ece0eba960cd85984fb6686dbf7a6c334f256742ace783cfdb.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      60,
+      125,
+      902,
+      929
+    ],
+    "page_idx": 13
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 13
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 13
+  },
+  {
+    "type": "text",
+    "text": "国内储能新增装机按技术分类，成四大梯队分布",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      460,
+      72
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "image",
+    "img_path": "images/9623b5e402e91a57fec00e3e9c1f396e2bd1fd2743664a55e921b0af5f6912d2.jpg",
+    "image_caption": [
+      "亿欧智库：中国储能新增装机梯队划分（技术分类）"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      39,
+      350,
+      505,
+      905
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "image",
+    "img_path": "images/89d3f73189b29604e261c8ccf4d944e610bf6f93026c9934e7be254a2caf96f7.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      513,
+      309,
+      966,
+      490
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "image",
+    "img_path": "images/7a88f55d92e0f7c44251d062a3eafc581c36e9deb7f3bbc5645e3ecbceffb609.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      522,
+      514,
+      966,
+      703
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "image",
+    "img_path": "images/d6f5a8ca40bf6b5f958d0a9c2f5417092d2cdd96f5bfa1011a5842e7b97c8da6.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      525,
+      722,
+      965,
+      900
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      20,
+      955,
+      153,
+      975
+    ],
+    "page_idx": 14
+  },
+  {
+    "type": "text",
+    "text": "储能技术不同类型及特点",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      253,
+      72
+    ],
+    "page_idx": 15
+  },
+  {
+    "type": "table",
+    "img_path": "images/0d4c092202dec6faa3ee9ae54c8081a2085460d33104d0c1073a14b34f5154e6.jpg",
+    "table_caption": [
+      "亿欧智库：不同储能技术类型和主要特点"
+    ],
+    "table_footnote": [
+      "数据来源：公开材料；亿欧智库"
+    ],
+    "table_body": "<table><tr><td>分类</td><td>储能技术</td><td>适用储能时长</td><td>响应时间</td><td>放电时长</td><td>综合效率/%</td><td>寿命:年</td><td>技术成熟度</td><td>应用场景</td></tr><tr><td rowspan=\"3\">① 机械储能</td><td>抽水蓄能</td><td>长时</td><td>s-min级</td><td>1-24h</td><td>75-85</td><td>40-60</td><td>成熟</td><td>调峰、备用</td></tr><tr><td>空气储能</td><td>长时</td><td>min级</td><td>1-24h</td><td>70-89</td><td>20-40</td><td>成熟</td><td>调峰、备用</td></tr><tr><td>飞轮储能</td><td>短时</td><td>ms-min级</td><td>ms-15min</td><td>93-95</td><td>15+</td><td>商业化早期</td><td>调频、平滑波动</td></tr><tr><td rowspan=\"4\">② 电化学储能</td><td>铅蓄电池</td><td>短时</td><td>ms-min级</td><td>ms-h</td><td>75-90</td><td>5</td><td>商业化</td><td>调峰、调频、通讯基站备用电源</td></tr><tr><td>钠硫电池</td><td>短时</td><td>ms级</td><td>s-h级</td><td>80-90</td><td>10-15</td><td>商业化</td><td>调峰、调频、能量管理、备用</td></tr><tr><td>液流电池</td><td>短时/长时</td><td>ms级</td><td>s-h级</td><td>60-85</td><td>5-10</td><td>商业化早期</td><td>调峰、调频、能量管理、备用</td></tr><tr><td>锂离子电池</td><td>短时/长时</td><td>ms-min级</td><td>ms-h级</td><td>98-95</td><td>5-15</td><td>商业化</td><td>调峰、调频、能量管理、备用</td></tr><tr><td rowspan=\"2\">③ 电磁储能</td><td>超导储能</td><td>短时</td><td>&lt;100 ms</td><td>ms-8s</td><td>95-98</td><td>20+</td><td>开发阶段</td><td>调频、平滑波动</td></tr><tr><td>超级电容</td><td>短时</td><td>ms级</td><td>ms-60min</td><td>90-95</td><td>20+</td><td>开发阶段</td><td>调频、平滑波动</td></tr></table>",
+    "bbox": [
+      34,
+      335,
+      958,
+      931
+    ],
+    "page_idx": 15
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      872,
+      25,
+      979,
+      79
+    ],
+    "page_idx": 15
+  },
+  {
+    "type": "text",
+    "text": "抽水蓄能：中国作为抽水蓄能大国，进入发展高峰期",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      503,
+      72
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "image",
+    "img_path": "images/3c93833d6be13d558e95c262ce21f44d7beeb914dc994628ff5151582b6dd0bb.jpg",
+    "image_caption": [
+      "亿欧智库：抽水蓄能发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      35,
+      348,
+      731,
+      757
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "起步期",
+    "text_level": 1,
+    "bbox": [
+      151,
+      768,
+      191,
+      794
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "- 解决电力匮乏问题，保证大电网安全，电站建成，设备多源自进口，但总体发展缓慢",
+    "bbox": [
+      46,
+      809,
+      233,
+      875
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "发展期",
+    "text_level": 1,
+    "bbox": [
+      409,
+      768,
+      450,
+      796
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "高峰期",
+    "text_level": 1,
+    "bbox": [
+      623,
+      768,
+      664,
+      794
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "储能概念受到关注，成为中国主要储能方式，正在实现零部件全面国产化的路上",
+    "bbox": [
+      563,
+      814,
+      715,
+      883
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "image",
+    "img_path": "images/e0f912cc3fb3f06fe1a82a919713a26fe9072977c7a440c13e3f5865f7916f90.jpg",
+    "image_caption": [
+      "亿欧智库：抽水蓄能分类"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      734,
+      385,
+      975,
+      720
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      154,
+      975
+    ],
+    "page_idx": 16
+  },
+  {
+    "type": "text",
+    "text": "抽水蓄能：技术成熟但建设受限，需求和电价机制是制约发展的主要因素",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      691,
+      72
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "image",
+    "img_path": "images/5ecfba4b81711e547fd0622e1c544c1276bc9e259f6c4796a88e88912f684c17.jpg",
+    "image_caption": [
+      "亿欧智库：抽水蓄能电站在电力系统中的作用"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      42,
+      350,
+      459,
+      905
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "限制因素",
+    "text_level": 1,
+    "bbox": [
+      494,
+      405,
+      516,
+      562
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "过去的电力贡献大多来自火电，虽然用电量不断增长，但火电电源稳定性强，水电本身又具备调峰调频的功能，电网对于储能的需求并不是非常急迫。",
+    "bbox": [
+      601,
+      322,
+      940,
+      412
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "电价机制",
+    "text_level": 1,
+    "bbox": [
+      539,
+      444,
+      579,
+      522
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "抽蓄电站的成本一直无法顺利传导，电网投资意愿不强。另外，抽蓄电站的盈利和电网运营利润捆绑式计算，导致社会资本参与度也较低。",
+    "bbox": [
+      601,
+      444,
+      940,
+      533
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "站址限制",
+    "text_level": 1,
+    "bbox": [
+      539,
+      562,
+      579,
+      640
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "抽水蓄能对地理因素的要求很高，需要合适的地理条件建造水库和水坝，需要有合适的水源条件、地形条件、地质条件、环境条件，建设周期长。",
+    "bbox": [
+      601,
+      564,
+      940,
+      653
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "image",
+    "img_path": "images/cd1f067f2a90b2da730b96368c20064998138dc147e38a34ed2ab35ac28ece30.jpg",
+    "image_caption": [
+      "抽水蓄能电站投资构成"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      559,
+      716,
+      873,
+      879
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 17
+  },
+  {
+    "type": "text",
+    "text": "飞轮蓄能：处于发展阶段，未来应用有待突破",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      441,
+      72
+    ],
+    "page_idx": 18
+  },
+  {
+    "type": "image",
+    "img_path": "images/6249ae06f19f8df68e56b7da27aa18cefc6ac9214c0c4f7c646c6fe20bdf72e6.jpg",
+    "image_caption": [
+      "亿欧智库：飞轮蓄能发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      52,
+      316,
+      976,
+      924
+    ],
+    "page_idx": 18
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 18
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 18
+  },
+  {
+    "type": "text",
+    "text": "压缩空气储能：新技术推广使效率显著提升，初具大规模商业化条件",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      650,
+      72
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "table",
+    "img_path": "images/a41d37d955e623bce47330f0471e34130ba570426ff9aba9d7d611341e2bee84.jpg",
+    "table_caption": [
+      "亿欧智库：不同技术路径空气储能系统的优缺点对比"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>技术路径</td><td>优点</td><td>缺点</td></tr><tr><td>蓄热式压缩空气储能(TS-CAES)</td><td>1)不需要补燃，节约化石燃料2)能量回收以提高系统效率3)可利用外界热源以进一步提高效率4)技术较成熟，我们认为初具商业化条件</td><td>增加多级换热及储热，占地面积和投资有所增加</td></tr><tr><td>液态压缩空气储能(LAES)</td><td>1)不受地理环境限制2)能量密度大</td><td>依赖化石燃料输入，系统性能受回热器的影响较大</td></tr><tr><td>超临界压缩空气储能(SC-CAES)</td><td>1)效率高2)能量密度高破3)不需要补燃，节约化石燃料</td><td>技术仍有待突</td></tr></table>",
+    "bbox": [
+      35,
+      350,
+      500,
+      903
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "效率提升+成本下降",
+    "text_level": 1,
+    "bbox": [
+      691,
+      342,
+      822,
+      375
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "蓄热式短期内有望迎来大规模商业化",
+    "text_level": 1,
+    "bbox": [
+      636,
+      701,
+      873,
+      733
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "不依赖化石燃料、效率较高",
+    "bbox": [
+      663,
+      759,
+      807,
+      785
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "具备较为成熟的技术",
+    "bbox": [
+      683,
+      792,
+      789,
+      818
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "我国有大量的盐洞、废弃矿洞",
+    "bbox": [
+      660,
+      825,
+      812,
+      850
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      153,
+      975
+    ],
+    "page_idx": 19
+  },
+  {
+    "type": "text",
+    "text": "锂离子电池：目前储能应用中最主要的技术路线，处于绝对主导地位",
+    "text_level": 1,
+    "bbox": [
+      25,
+      27,
+      657,
+      72
+    ],
+    "page_idx": 20
+  },
+  {
+    "type": "image",
+    "img_path": "images/d8543d544a51476ddf59a5e164e830db126c8e5055affe53ca7cddf302e725c9.jpg",
+    "image_caption": [
+      "亿欧智库：锂离子电池发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      34,
+      300,
+      980,
+      588
+    ],
+    "page_idx": 20
+  },
+  {
+    "type": "table",
+    "img_path": "images/fc6428477ce8da5d1b6d7b96aab00c6805ac6b44819c79640a0819977e94514d.jpg",
+    "table_caption": [],
+    "table_footnote": [
+      "数据来源：公开材料；亿欧智库"
+    ],
+    "table_body": "<table><tr><td rowspan=\"11\">锂离子电池分类</td><td rowspan=\"4\">按正极材料</td><td rowspan=\"4\">·铁酸锂电池\n·钴酸锂电池\n·锰酸锂电池\n·镍酸锂电池\n·三元材料锂电池</td><td>类型</td><td>磷酸铁锂（LFP）</td><td>磷酸锰铁锂（LMFP）</td><td>镍钴锂三元（NCM）</td><td>镍钴铝三元（NCA）</td></tr><tr><td>结构</td><td>橄榄石</td><td>橄榄石</td><td>层状</td><td>层状</td></tr><tr><td>正极材料资源</td><td>磷铁资源丰富</td><td>磷铁资源丰富</td><td>钴资源贫乏</td><td>钴资源贫乏</td></tr><tr><td>正极合成工艺</td><td>较难</td><td>较难</td><td>较难</td><td>难</td></tr><tr><td rowspan=\"4\">按电解质材料</td><td rowspan=\"4\">·液态锂电池\n·固态聚合物锂电池</td><td>循环寿命（次）</td><td>4000-6000</td><td>-</td><td>2000-3000</td><td>2000-3000</td></tr><tr><td>充电速度</td><td>较慢</td><td>较慢</td><td>快</td><td>快</td></tr><tr><td>安全性能</td><td>优</td><td>优</td><td>良</td><td>良</td></tr><tr><td>倍率性能</td><td>一般</td><td>较优</td><td>优</td><td>优</td></tr><tr><td rowspan=\"3\">按应用分类</td><td rowspan=\"3\">·动力型电池\n·消费型电池\n·储能型电池</td><td>综合成本</td><td>低</td><td>较低</td><td>高</td><td>高</td></tr><tr><td>优点</td><td>安全性好，循环寿命长，成本低</td><td>安全性好，比容量高，成本低</td><td>比容量高；倍率性好</td><td>比容量高；倍率性好</td></tr><tr><td>缺点</td><td>能力密度低，低温性能差</td><td>存在两个电压平台</td><td>安全性低，循环寿命短</td><td>安全性低，循环寿命短</td></tr></table>",
+    "bbox": [
+      38,
+      590,
+      981,
+      953
+    ],
+    "page_idx": 20
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 20
+  },
+  {
+    "type": "text",
+    "text": "钠离子电池：具备成本低、资源丰富特点，未来产业化是大势所趋",
+    "text_level": 1,
+    "bbox": [
+      25,
+      27,
+      635,
+      72
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "钠离子电池与锂离子电池工作原理相同，是锂离子电池的重要补充。其上游资源储量充沛低廉，生产工艺与锂离子电池类似，量产成本比锂离子电池低  $35\\%$  左右。目前仍在量产阶段中，具备成本低、资源丰富、低温性能佳、倍率性能好等特点，提到的能量密度、充放电效率等重要性能指标均有待验证。目前中国开展了多个钠离子电池材料、电芯生产制造示范区，量产持续推进中。钠离子电池的生产工艺与锂离子电池趋同，技术可复刻，设备可迁移，钠离子产业化时间有望进一步提前。",
+    "bbox": [
+      29,
+      103,
+      978,
+      229
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "image",
+    "img_path": "images/e1116df1ec1864a456ffd59c45872f3ab71e5380eb9d93baf3370b3e9961c23f.jpg",
+    "image_caption": [
+      "亿欧智库：钠离子电池发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      58,
+      266,
+      960,
+      435
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "table",
+    "img_path": "images/2d5dcd190f9ede4bb9f02f70daf8f41833306dc6a6aaee23d76629142487a5fc.jpg",
+    "table_caption": [
+      "钠离子电池与锂离子电池材料体系对比"
+    ],
+    "table_footnote": [
+      "从材料体系来看，除了隔膜/设备以外，其他各材料组分均有明显变化，特别是正负极材料变化明显。"
+    ],
+    "table_body": "<table><tr><td>材料与设备</td><td>锂离子电池</td><td>钠离子电池</td></tr><tr><td>正极材料</td><td>磷酸铁锂、三元材料等</td><td>铁锰铜/镍三元体系、碳酸体系、硫酸体系、普鲁士蓝类化合物等</td></tr><tr><td>负极材料</td><td>石墨</td><td>碳类材料、金属氧化物、磷基材料</td></tr><tr><td>电解液</td><td>六氟磷酸锂</td><td>六氟磷酸钠</td></tr><tr><td>隔膜</td><td>无变化</td><td>无变化</td></tr><tr><td>集流体</td><td>铜箔</td><td>铝箔</td></tr><tr><td>设备</td><td>无变化</td><td>无变化</td></tr></table>",
+    "bbox": [
+      60,
+      488,
+      510,
+      829
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "成本下降约30%↓",
+    "bbox": [
+      357,
+      864,
+      469,
+      896
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "钠离子电池优劣势",
+    "text_level": 1,
+    "bbox": [
+      692,
+      477,
+      795,
+      505
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "优势：性能好，安全性能高",
+    "text_level": 1,
+    "bbox": [
+      670,
+      529,
+      805,
+      555
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "劣势：循环寿命、能量密度尚有改善空间",
+    "text_level": 1,
+    "bbox": [
+      637,
+      720,
+      838,
+      746
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      154,
+      975
+    ],
+    "page_idx": 21
+  },
+  {
+    "type": "text",
+    "text": "氢燃料电池：碳中和背景下，发展趋势向好，商业化前景广阔",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      586,
+      72
+    ],
+    "page_idx": 22
+  },
+  {
+    "type": "image",
+    "img_path": "images/38012078e458dc9d71fed1acbbb00767f0d04c57141f27f2e26926628c267234.jpg",
+    "image_caption": [
+      "亿欧智库：氢燃料电池发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      58,
+      275,
+      973,
+      953
+    ],
+    "page_idx": 22
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 22
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      153,
+      975
+    ],
+    "page_idx": 22
+  },
+  {
+    "type": "text",
+    "text": "超级电容储能",
+    "text_level": 1,
+    "bbox": [
+      65,
+      355,
+      81,
+      516
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "根据电化学双电层理论研制而成的，又称双电层电容器，两电荷层的距离非常小（一般0.5mm以下），采用特殊电极结构，使电极表面积成万倍的增加，从而产生极大的电容量。",
+    "bbox": [
+      120,
+      327,
+      668,
+      392
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "超级电容器储能开发已有50多年的历史，近二十年来技术进步很快，使它的电容量与传统电容相比大大增加，达到几千法拉的量级，而且比功率密度可达到传统电容的十倍。超级电容器储能将电能直接储存在电场中，无能量形式转换，充放电时间快，适合用于改善电能质量。由于能量密度较低，适合与其他储能手段联合使用。",
+    "bbox": [
+      684,
+      348,
+      958,
+      551
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "超导储能",
+    "text_level": 1,
+    "bbox": [
+      65,
+      701,
+      82,
+      809
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "超导磁储能是利用超导体的电阻为零特性制成的储存电能的装置，其不仅可以在超导体电感线圈内无损耗地储存电能，还可以通过电力电子换流器与外部系统快速交换有功和无功功率，用于提高电力系统稳定性、改",
+    "bbox": [
+      120,
+      646,
+      665,
+      712
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "善供电品质。",
+    "bbox": [
+      121,
+      720,
+      186,
+      746
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "超导储能适合用于提高电能质量，增加系统阻尼，改善系统稳定性能，特别是用于抑制低频功率振荡。但是由于其格昂贵和维护复杂，虽然已有商业性的低温和高温超导储能产品可用，在电网中应用很少，大多是试验性的。SMES在电力系统中的应用取决于超导技术的发展，特别是材料、制冷、电力电子等方面技术的发展。",
+    "bbox": [
+      683,
+      662,
+      956,
+      864
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      153,
+      975
+    ],
+    "page_idx": 23
+  },
+  {
+    "type": "text",
+    "text": "储能技术发展与落地应用评价指标体系",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      378,
+      72
+    ],
+    "page_idx": 24
+  },
+  {
+    "type": "text",
+    "text": "$\\Leftrightarrow$  根据亿欧智库研究，储能技术发展与落地应用评价指标体系围绕技术特性指标、经济特性指标、产业化能力指标三大评价维度，12个细分指标进行评价。",
+    "bbox": [
+      20,
+      105,
+      978,
+      168
+    ],
+    "page_idx": 24
+  },
+  {
+    "type": "image",
+    "img_path": "images/b9f1f0d4230a5c46451eee9af780d49e5529197d7b662ce6e64ea89e276e8d7f.jpg",
+    "image_caption": [
+      "亿欧智库：储能技术发展与落地应用评价指标体系"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      77,
+      225,
+      887,
+      888
+    ],
+    "page_idx": 24
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 24
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      153,
+      975
+    ],
+    "page_idx": 24
+  },
+  {
+    "type": "text",
+    "text": "储能技术发展与落地应用市场扫描",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      336,
+      72
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "text",
+    "text": "从技术先进性和应用落地性两个维度，基于细分指标，对储能技术市场进行扫描。当前中国储能技术企业主要分为实力引领型、稳健发展型、潜力发展型三类企业。",
+    "bbox": [
+      20,
+      103,
+      977,
+      168
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "table",
+    "img_path": "images/aa02cf2c021e07bbc913faf8c38d8bd9147a8c5508d27a034646c491aca73138.jpg",
+    "table_caption": [],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>维度</td><td>指标及解释</td></tr><tr><td>技术先进性</td><td>• 功率/能量密度：密度越高，技术先进性数值越大\n• 循环寿命/循环次数：循环越多，技术先进性数值越大\n• 功率/能量成本：成本越低，技术先进性数值越大</td></tr><tr><td>应用落地性</td><td>• 市场规模：市场规模越大，应用落地性数值越大\n• 商业化程度：商业化程度越高，应用落地性数值越大\n• 政策力度：政策力度越强，应用落地性数值越大</td></tr></table>",
+    "bbox": [
+      41,
+      259,
+      461,
+      779
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "image",
+    "img_path": "images/14929efab4424657637b9595bd6614bf42892632f747afc75c6dd2f01e6fd5da.jpg",
+    "image_caption": [
+      "技术先进性"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      491,
+      262,
+      959,
+      800
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      154,
+      975
+    ],
+    "page_idx": 25
+  },
+  {
+    "type": "text",
+    "text": "01 储能市场概览",
+    "text_level": 1,
+    "bbox": [
+      454,
+      83,
+      625,
+      122
+    ],
+    "page_idx": 26
+  },
+  {
+    "type": "text",
+    "text": "02 中国储能产业发展现状",
+    "text_level": 1,
+    "bbox": [
+      454,
+      331,
+      708,
+      370
+    ],
+    "page_idx": 26
+  },
+  {
+    "type": "text",
+    "text": "03 中国储能应用案例",
+    "text_level": 1,
+    "bbox": [
+      454,
+      531,
+      666,
+      570
+    ],
+    "page_idx": 26
+  },
+  {
+    "type": "text",
+    "text": "04 中国储能未来发展趋势",
+    "text_level": 1,
+    "bbox": [
+      454,
+      779,
+      708,
+      818
+    ],
+    "page_idx": 26
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      46,
+      42,
+      128,
+      75
+    ],
+    "page_idx": 26
+  },
+  {
+    "type": "text",
+    "text": "机械储能与电化学储能协同发展，新型储能应用场景丰富，商业化未完全成熟但发展势头好",
+    "text_level": 1,
+    "bbox": [
+      17,
+      27,
+      857,
+      77
+    ],
+    "page_idx": 27
+  },
+  {
+    "type": "image",
+    "img_path": "images/484856726c25ece3840b5b75f1261f6d66a449266aaa7388a73f0210c2148409.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      35,
+      250,
+      937,
+      916
+    ],
+    "page_idx": 27
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 27
+  },
+  {
+    "type": "text",
+    "text": "商业模式：从单一走向多元，以政策为导向逐步发展为多环节商业模式",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      670,
+      72
+    ],
+    "page_idx": 28
+  },
+  {
+    "type": "text",
+    "text": "2022年起政策密集出台，储能在电力体系中地位逐步明确：发电侧消纳弃风弃光提供额外补偿，电网侧调峰调频补偿机制明晰、参与台区改造降低局部电力系统升级成本，用户侧扩大峰谷价差、高用电场景配储降本，储能经济性价值逐步显现，多场景需求扩张为储能带来新的需求增量，储能行业迎来加速增长期。",
+    "bbox": [
+      20,
+      107,
+      975,
+      212
+    ],
+    "page_idx": 28
+  },
+  {
+    "type": "image",
+    "img_path": "images/5de4bd29019c0b94435df9df14a0d54c1d8022d91a0bb87417830227df50ffbd.jpg",
+    "image_caption": [
+      "亿欧智库：中国储能市场商业模式发展历程"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      22,
+      305,
+      957,
+      950
+    ],
+    "page_idx": 28
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 28
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 28
+  },
+  {
+    "type": "text",
+    "text": "电源侧：以生物发电、光伏发电、风力发电和水力发电搭配储能系统的新型储能为大趋势",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      837,
+      72
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "亿欧智库：电源侧火电储能联合调频",
+    "text_level": 1,
+    "bbox": [
+      395,
+      290,
+      601,
+      318
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "在政策大力支持下，火电站配置电化学储能提供调频等辅助服务的经济性备受瞩目。",
+    "bbox": [
+      48,
+      364,
+      466,
+      422
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "但也存在一些限制因素，调频辅助服务市场空间相比于电能量调节市场空间较小，大量储能技术涌入调频市场必然对调频价格造成较大冲击。",
+    "bbox": [
+      50,
+      431,
+      466,
+      490
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "从现状态势来看，装机规模较大、自身调节能力较强的火电机组更有优势，他们在进行储能配置的改造后，收益也会更有保障。",
+    "bbox": [
+      50,
+      500,
+      459,
+      557
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "从长期来看，随着顶层设计、配套机制的不断完善，火储联调未来还会拓展到一次调频市场，从而进一步拓宽盈利渠道，收益空间也会更加明朗。",
+    "bbox": [
+      48,
+      603,
+      467,
+      661
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "亿欧智库：电源侧新能源按比配储",
+    "text_level": 1,
+    "bbox": [
+      101,
+      718,
+      293,
+      746
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "按比例配储的新能源场站，也可以分为两类模式：",
+    "bbox": [
+      48,
+      772,
+      322,
+      801
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "第一类：通过峰谷套利的方式获得可观的收益，降低地方电网峰谷差，实现新能源大范围、长距离的稳定消纳",
+    "bbox": [
+      48,
+      811,
+      454,
+      868
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "第二类：通过绿电交易、绿证和碳交易市场，获得附加利益和竞争优势",
+    "bbox": [
+      50,
+      877,
+      441,
+      905
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "image",
+    "img_path": "images/061f51aa8a04758ac74929cce1fc1aeac1d4736473f5a5ef62d300142924266b.jpg",
+    "image_caption": [
+      "电网"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      497,
+      366,
+      937,
+      687
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "text",
+    "text": "国内大部分的主力火电机组已经完成了提高快速调频性能优化项目，对适应新型绿色能源的迅猛发展、充分利用新型绿色能源、抵消新型绿色能源大规模接入电网的不稳定性问题、保障电网提供安全稳定的电力供应发挥出了实质性的作用",
+    "bbox": [
+      511,
+      785,
+      931,
+      905
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      955,
+      154,
+      975
+    ],
+    "page_idx": 29
+  },
+  {
+    "type": "image",
+    "img_path": "images/d638d92b922c502aa46d6a54376cda5371a04f41b0155daefef4249af34ac591.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      80,
+      361,
+      157,
+      500
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "体现新型储能三大优势",
+    "text_level": 1,
+    "bbox": [
+      169,
+      411,
+      260,
+      472
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "极具拓展性和延伸性",
+    "text_level": 1,
+    "bbox": [
+      126,
+      607,
+      243,
+      635
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "该项目属浙江省内首次采用可开放性及可升级性“火储协调控制  $+$  电池能量管理”系统项目。",
+    "bbox": [
+      87,
+      705,
+      268,
+      801
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "无人值守保障安全",
+    "text_level": 1,
+    "bbox": [
+      396,
+      555,
+      501,
+      587
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "最大程度保障了工作人员的安全",
+    "text_level": 1,
+    "bbox": [
+      351,
+      651,
+      531,
+      681
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "效率、性能提升",
+    "text_level": 1,
+    "bbox": [
+      676,
+      468,
+      767,
+      496
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "整体联调后，调频效果将达到：",
+    "text_level": 1,
+    "bbox": [
+      630,
+      559,
+      801,
+      588
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "水电机组的1.4倍、天然气机组的2.3倍、燃煤机组的20倍以上",
+    "bbox": [
+      630,
+      590,
+      750,
+      681
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 30
+  },
+  {
+    "type": "text",
+    "text": "电网侧：具备独立运行条件，独立共享储能商业模式前景可期",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      586,
+      72
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "image",
+    "img_path": "images/cb095fc1c0fb7d643c11ef9b8850aef733934d692bd20463f05e17339fe2efd2.jpg",
+    "image_caption": [
+      "亿欧智库：电网侧独立共享储能模式"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      42,
+      405,
+      525,
+      938
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "运营模式：",
+    "text_level": 1,
+    "bbox": [
+      575,
+      438,
+      634,
+      466
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "出租方将储能系统的功率和容量以商品形式租赁给目标用户，秉承“谁受益、谁付费”的原则向用户收取租金",
+    "bbox": [
+      575,
+      477,
+      929,
+      548
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "出租方-共享储能服务商权益：",
+    "text_level": 1,
+    "bbox": [
+      575,
+      598,
+      740,
+      627
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "容量租赁费用是服务商稳定的收入来源，国内一般在250-350元/kW/年之间。（例如100MW的共享储能电站，容量租赁费用可达2500-3500万元/年）",
+    "bbox": [
+      573,
+      637,
+      931,
+      748
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "承租方-用户侧权益：",
+    "text_level": 1,
+    "bbox": [
+      575,
+      800,
+      689,
+      827
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "在服务时限内享有储能充放电权力来满足自身供能需求，无需自主建设储能电站，大幅减低原始资金投入",
+    "bbox": [
+      575,
+      838,
+      928,
+      907
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 31
+  },
+  {
+    "type": "text",
+    "text": "实践案例：青海共享储能解决弃风弃光电量计算、线损电量计算等问题",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      673,
+      77
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "image",
+    "img_path": "images/0e57ac0fb086eb94617bb91b5cf0d96ab299262e8c832ff2e47e037c37fe212e.jpg",
+    "image_caption": [
+      "打造了基于区块链的共享储能应用平台保障储能交易安全性透明性"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      187,
+      500,
+      316,
+      670
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "text",
+    "text": "国网青海电力利用区块链技术的特性，将其引入共享储能辅助服务交易，保障共享储能交易的安全性、可追溯性，给市场建立更多信心。",
+    "bbox": [
+      33,
+      714,
+      452,
+      772
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "text",
+    "text": "平台通过区块链分布式存储、加密技术、共识算法和智能合约，将新能源受阻电力、电量与储能系统接收电力、电量通过信息技术采集过程记录在区块链上，并实现可视化和可追溯，完成多主体间的交易结果清分。",
+    "bbox": [
+      33,
+      781,
+      453,
+      872
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "text",
+    "text": "采用新模式后，青海共享储能电站最大利用率达  $199\\%$",
+    "bbox": [
+      477,
+      796,
+      784,
+      825
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "text",
+    "text": "基于海西天气不定，海西、宁月塔青断面负载率多次超过  $96\\%$  。位于海西地区的中国绿发与上海闵行两个共享储能电站在调整充放电控制策略后，首次实现日内“三充三放”，打破了储能电站通常每日最多实现一次满充满放的瓶颈。",
+    "bbox": [
+      476,
+      833,
+      946,
+      925
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      18,
+      953,
+      154,
+      977
+    ],
+    "page_idx": 32
+  },
+  {
+    "type": "image",
+    "img_path": "images/b7dbf112e24192d2a3ee94a33fa45fcde519a452dadcb7ad2674100a156f12c7.jpg",
+    "image_caption": [
+      "亿欧智库：家庭光伏+储能应用示例",
+      "限制性：光伏发电存在固有的间歇性和波动性，影响电网的稳定性"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      38,
+      355,
+      461,
+      955
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "text",
+    "text": "商业化现状：处于市场初步发展阶段，市场空间大",
+    "text_level": 1,
+    "bbox": [
+      605,
+      262,
+      885,
+      292
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "text",
+    "text": "作为分布式光伏发电的主要形式，户用光伏系统已在国外得到成功推广。在中国，处于初步发展阶段，目前也有互联网巨头入局家庭储能，例如华为。对于便携式储能，也有独角兽企业启动上市，随着国家政策利好，我国分布式光伏发电市场份额稳步提升，用户侧家庭储能逐步走进消费者视线，在市场培育进一步渗透后，将会持续保持高速增长。",
+    "bbox": [
+      526,
+      325,
+      934,
+      479
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "image",
+    "img_path": "images/60430f1d67f5e138a03feeb12be2e3258104cf85ae3e7f0fa25bdc68d431d018.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      540,
+      635,
+      575,
+      703
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "image",
+    "img_path": "images/9d0dfa94d929040d1e2f6b9a142c5c11bc030f47a057c6541e773dcad7ee47a0.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      540,
+      812,
+      579,
+      855
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "image",
+    "img_path": "images/acb25cd9d798bcb0a708f512af5ef7e9f5125061c747548748aee71d1db8889e.jpg",
+    "image_caption": [
+      "亿欧智库：户外便携式储能应用示例",
+      "便携式储能产品",
+      "可同时支持多设备，多线接入同时放电使用"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      603,
+      666,
+      796,
+      907
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      897,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 33
+  },
+  {
+    "type": "text",
+    "text": "用户侧-工商业：以自建设备与服务端协助设备建设商业模式为主，需求已逐渐激发",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      783,
+      72
+    ],
+    "page_idx": 34
+  },
+  {
+    "type": "image",
+    "img_path": "images/19c61fffc6d12ce282d40a5ca585abc5dd13914206ecabdb7671987d678a83ee.jpg",
+    "image_caption": [
+      "亿欧智库：工商业储能示意图"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      41,
+      485,
+      500,
+      872
+    ],
+    "page_idx": 34
+  },
+  {
+    "type": "image",
+    "img_path": "images/337ba45ff6f46d7ac9a0b5d5511c4af3f0a3e2efb8ec354c078909eecd5c48f1.jpg",
+    "image_caption": [
+      "亿欧智库：工商业储能主流商业模式"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      608,
+      507,
+      938,
+      827
+    ],
+    "page_idx": 34
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 34
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      28,
+      948,
+      164,
+      970
+    ],
+    "page_idx": 34
+  },
+  {
+    "type": "text",
+    "text": "实践案例：科林产业园综合能源微电网利用园区内地热资源提供分布式冷热联供服务",
+    "text_level": 1,
+    "bbox": [
+      17,
+      31,
+      796,
+      77
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "image",
+    "img_path": "images/51065439f577adf975e29fa1d0fb89f847a65d3dfe9e4b7f05230f37900eb1a0.jpg",
+    "image_caption": [
+      "亿欧智库：分布式发电与智能微网建设情况及应用"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      32,
+      370,
+      588,
+      916
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "项目建设工商业园区级（冷、热、电）微型综合能源网络，具备能源生产、供应销售、调控优化等综合管理功能。",
+    "bbox": [
+      605,
+      438,
+      958,
+      494
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "在引入市电10kV电源的同时，建设园区高低压配网系统，以分配电能，从而满足园区生产生活等的不同用电需求。",
+    "bbox": [
+      605,
+      518,
+      958,
+      574
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "此外，项目利用园区内地热资源提供分布式冷热联供服务，降低空调制冷的用能成本，解决园区城市热网无法覆盖的问题。",
+    "bbox": [
+      605,
+      600,
+      962,
+      655
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "在新能源方面，项目利用园区大型厂房屋顶建设分布式光伏发电系统作为市电补充，并建设大型电动汽车充电站，满足园区及周边过往社会车辆快速充电需求。",
+    "bbox": [
+      605,
+      679,
+      958,
+      761
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "园区综合能源管控平台可对整个分布式能源网络进行管控和优化，同时结合远期规划的储能系统，最终建设了具备源、网、荷、储、控各个要素的并网型园区级综合能源微网。",
+    "bbox": [
+      605,
+      785,
+      958,
+      868
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 35
+  },
+  {
+    "type": "text",
+    "text": "01 储能市场概览",
+    "text_level": 1,
+    "bbox": [
+      454,
+      83,
+      625,
+      124
+    ],
+    "page_idx": 36
+  },
+  {
+    "type": "text",
+    "text": "02 中国储能产业发展现状",
+    "text_level": 1,
+    "bbox": [
+      454,
+      329,
+      708,
+      372
+    ],
+    "page_idx": 36
+  },
+  {
+    "type": "text",
+    "text": "03 中国储能应用案例",
+    "text_level": 1,
+    "bbox": [
+      454,
+      529,
+      666,
+      572
+    ],
+    "page_idx": 36
+  },
+  {
+    "type": "text",
+    "text": "04 中国储能未来发展趋势",
+    "text_level": 1,
+    "bbox": [
+      454,
+      753,
+      708,
+      796
+    ],
+    "page_idx": 36
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      46,
+      42,
+      128,
+      75
+    ],
+    "page_idx": 36
+  },
+  {
+    "type": "text",
+    "text": "新能源装机规模的提高将用电核心矛盾转向尖峰负荷，储能需与其他解决方案协同支撑",
+    "text_level": 1,
+    "bbox": [
+      17,
+      27,
+      816,
+      72
+    ],
+    "page_idx": 37
+  },
+  {
+    "type": "image",
+    "img_path": "images/ba6c81a1a0937715ee044ddbe75f8954cd340766d925ec69f558b8be8784bf3b.jpg",
+    "image_caption": [
+      "亿欧智库：电力系统由“源随荷动”向“源荷互动”转变"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      35,
+      318,
+      486,
+      859
+    ],
+    "page_idx": 37
+  },
+  {
+    "type": "image",
+    "img_path": "images/785bcb3ab727781fe496b07cd2f525d555a53f231ee836b76a12aff7e8ce3fc7.jpg",
+    "image_caption": [
+      "亿欧智库：储能技术是尖峰负荷核心技术之一"
+    ],
+    "image_footnote": [],
+    "bbox": [
+      535,
+      325,
+      890,
+      931
+    ],
+    "page_idx": 37
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 37
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      12,
+      942,
+      146,
+      964
+    ],
+    "page_idx": 37
+  },
+  {
+    "type": "text",
+    "text": "虚拟电厂是储能的重要补充，储能+虚拟电厂将是未来电网调峰调频的重要有效途径",
+    "text_level": 1,
+    "bbox": [
+      18,
+      27,
+      793,
+      77
+    ],
+    "page_idx": 38
+  },
+  {
+    "type": "table",
+    "img_path": "images/3735c0a88a15036bfb7ea6b3edd0b92589f75445f0e1b321fdf2931fbca3a1e5.jpg",
+    "table_caption": [
+      "亿欧智库：调峰调频手段对比"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td>提升手段</td><td>优势</td><td>不足</td></tr><tr><td>火电灵活性改造</td><td>·单位调节容量投资小，调峰能力提升显著\n·配合检修同步进行，周期短见效快\n·改造的技术方案成熟，提升空间大</td><td>·配套政策与机制依赖性较高\n·响应调节速度慢，冷启动需5小时</td></tr><tr><td>抽水蓄能电站</td><td>·启动速度快\n·不仅提升灵活性，还能作为事故备用和黑启动电源</td><td>·抽发损失25%，使用成本高\n·地理条件受限</td></tr><tr><td>电化学储能站</td><td>·全自动化控制，响应快速\n·控制精度高，可全容量调节</td><td>·缺乏转动惯量，不利于控制电网频率\n·前期投资高，性价比较低\n·目前尚不具备大规模建设条件</td></tr><tr><td>需求侧响应</td><td>·潜力大\n·前景好</td><td>·价格信号传导机制形成需要较长时间\n·提升效果存在不确定性\n·需求侧资源可控性相对较差\n·响应效果难以精确计量，有争议</td></tr></table>",
+    "bbox": [
+      35,
+      318,
+      471,
+      920
+    ],
+    "page_idx": 38
+  },
+  {
+    "type": "table",
+    "img_path": "images/2f9024f3b2d52124c2a92ca4265868b07fbb54d77ba86757218c8e4052a4c567.jpg",
+    "table_caption": [
+      "亿欧智库：虚拟电厂与真实电厂的比较"
+    ],
+    "table_footnote": [],
+    "table_body": "<table><tr><td></td><td>虚拟电厂</td><td>电厂</td></tr><tr><td>调节手段</td><td>调增出力、调减负荷</td><td>调节出力</td></tr><tr><td>电能量市场</td><td>负荷削峰为主，可参与电力市场</td><td>中长期、现货电力交易</td></tr><tr><td>辅助服务市场</td><td>以调峰为主，能力可拓展</td><td>调峰、调频、备用、调压等</td></tr><tr><td>容量市场</td><td>容量补偿</td><td>容量补偿</td></tr><tr><td>调节资源</td><td>分布式电源、储能、充电桩、可调节负荷</td><td>火电厂、风电、光伏</td></tr></table>",
+    "bbox": [
+      531,
+      325,
+      950,
+      944
+    ],
+    "page_idx": 38
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      897,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 38
+  },
+  {
+    "type": "footer",
+    "text": "数据来源：公开材料；亿欧智库",
+    "bbox": [
+      19,
+      953,
+      154,
+      977
+    ],
+    "page_idx": 38
+  },
+  {
+    "type": "text",
+    "text": "目前储能市场面临多重痛点，需分阶段推进储能电站参与电力市场",
+    "text_level": 1,
+    "bbox": [
+      19,
+      27,
+      627,
+      72
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "储能电站参与电力市场的类型主要包括电量市场、辅助服务市场和容量市场，发挥储能综合价值，实现多重收入。目前，在现有的电力市场框架和规则下，储能电站可参与中长期电量交易，调频、调峰辅助服务市场交易。从实际成效来看，我国储能电站投资建设成本仍然较高，在单一市场中的利用率较低，多重价值、系统价值难以得到全面体现，在市场上难以与其他替代资源竞争。",
+    "bbox": [
+      20,
+      105,
+      977,
+      200
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "亿欧智库：储能市场痛点",
+    "text_level": 1,
+    "bbox": [
+      107,
+      259,
+      247,
+      288
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "image",
+    "img_path": "images/5f609da099de6f4326b0a2ff3576317e62d2cb0a16ed021291b4994c9badb8fd.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      27,
+      318,
+      328,
+      483
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "发展规划上，我国提出了储能量化目标，下一步需重点结合电力系统实际需求明确储能电站的布局，特别是统筹电网、抽水蓄能和各类其他灵活性资源，将储能电站规划纳入电网规划，引导储能电站合理布局、有序发展。",
+    "bbox": [
+      39,
+      501,
+      315,
+      607
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "市场准入上，储能电站参与电力现货交易市场的主体身份、准入条件还有待明确，交易规则还有待完善。配置储能已成为部分地区新能源优先开发的重要条件，新能源配置储能的应用范围有待扩展。",
+    "bbox": [
+      39,
+      644,
+      315,
+      750
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "价格机制上，储能电站电价政策缺失，目前我国尚未出台储能电站相关的充电价格、上网电价、输配电价政策。在构建新型电力系统过程中，用于保障电力系统安全、电力可靠供应的储能电站难以从市场获利。目前，对此类储能的发展尚无相关的支持政策。",
+    "bbox": [
+      39,
+      788,
+      315,
+      918
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "亿欧智库：推进储能电站参与电力市场三大阶段",
+    "text_level": 1,
+    "bbox": [
+      525,
+      259,
+      792,
+      288
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "第一阶段：当前电力市场环境",
+    "text_level": 1,
+    "bbox": [
+      375,
+      451,
+      542,
+      479
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "第二阶段：电力现货市场初极阶段",
+    "text_level": 1,
+    "bbox": [
+      559,
+      414,
+      750,
+      442
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "第三阶段：电力现货市场成熟阶段",
+    "text_level": 1,
+    "bbox": [
+      754,
+      370,
+      945,
+      400
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "- 让储能电站在多个市场中发挥多重价",
+    "bbox": [
+      758,
+      431,
+      940,
+      457
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "值：储能电站可全面参与电量市场、辅助服务市场和容量市场，提供不同时间尺度的调节服务",
+    "bbox": [
+      771,
+      470,
+      939,
+      572
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "text",
+    "text": "拓展储能电站应用新业态、新模式：拓展智慧能源，虚拟电厂等包含储能电站的新业态、新模式，实现储能电站多元化发展",
+    "bbox": [
+      758,
+      588,
+      940,
+      729
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      75
+    ],
+    "page_idx": 39
+  },
+  {
+    "type": "image",
+    "img_path": "images/5e7cb39faca61e0fdcb355bea488fe731e36631e2581eb8d6203ed1664cf2417.jpg",
+    "image_caption": [],
+    "image_footnote": [],
+    "bbox": [
+      55,
+      212,
+      146,
+      370
+    ],
+    "page_idx": 40
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      74
+    ],
+    "page_idx": 40
+  },
+  {
+    "type": "text",
+    "text": "目前储能行业仍处于市场初步发展期，未来能源会逐步成大型高耗能企业的资产，成为企业其中的核心竞争力之一。企业最重要是如何把能源从过去的仅使用消耗转变为资产，逐步深入参与整体能源产业链，而储能作为能源管理关键的模块，将发挥巨大作用。",
+    "bbox": [
+      708,
+      433,
+      939,
+      668
+    ],
+    "page_idx": 41
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      74
+    ],
+    "page_idx": 41
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      979,
+      74
+    ],
+    "page_idx": 42
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      978,
+      74
+    ],
+    "page_idx": 43
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      978,
+      74
+    ],
+    "page_idx": 44
+  },
+  {
+    "type": "header",
+    "text": "亿欧智库",
+    "bbox": [
+      896,
+      42,
+      978,
+      74
+    ],
+    "page_idx": 45
+  }
+]

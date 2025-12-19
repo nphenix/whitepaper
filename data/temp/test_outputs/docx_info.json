@@ -1,0 +1,10 @@
+{
+  "format": "docx",
+  "file_path": "document.docx",
+  "features": {
+    "preserves_formatting": true,
+    "includes_tables": true,
+    "includes_images": true,
+    "includes_formulas": true
+  }
+}

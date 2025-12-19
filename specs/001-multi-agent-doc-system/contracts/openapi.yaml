@@ -1,0 +1,987 @@
+openapi: 3.0.3
+info:
+  title: 多 Agent 协作的文档处理与生成系统 API
+  description: |
+    提供文档上传、知识库管理、Agent执行、文稿生成等功能的RESTful API。
+    基于FastAPI实现，支持同步和异步操作。
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: 本地开发服务器
+  - url: https://api.example.com/api/v1
+    description: 生产服务器
+
+tags:
+  - name: documents
+    description: 文档管理
+  - name: knowledge-base
+    description: 知识库操作
+  - name: agents
+    description: Agent执行
+  - name: drafts
+    description: 文稿生成
+  - name: templates
+    description: 模板管理
+  - name: memory
+    description: 记忆系统
+  - name: prompts
+    description: 提示词工程
+
+paths:
+  /documents:
+    post:
+      tags:
+        - documents
+      summary: 上传文档
+      description: 上传PDF或HTML格式的文档，系统将异步进行预处理、解析和索引
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  type: string
+                  description: JSON格式的元数据
+      responses:
+        '202':
+          description: 文档已接受，正在处理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: 文件过大（超过10MB）
+    
+    get:
+      tags:
+        - documents
+      summary: 获取文档列表
+      description: 分页获取用户上传的文档列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Status'
+      responses:
+        '200':
+          description: 文档列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentResponse'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+
+  /documents/{document_id}:
+    get:
+      tags:
+        - documents
+      summary: 获取文档详情
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: 文档详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - documents
+      summary: 删除文档
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '204':
+          description: 文档已删除
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /knowledge-base/search:
+    post:
+      tags:
+        - knowledge-base
+      summary: 检索知识库
+      description: 支持向量检索、BM25检索、元数据检索和知识图谱检索的混合检索
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: 检索结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /agents/document-preprocessor:
+    post:
+      tags:
+        - agents
+      summary: 文档预处理Agent
+      description: 对上传的文档进行格式识别、内容加载和清洗处理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreprocessRequest'
+      responses:
+        '202':
+          description: 预处理任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    
+    get:
+      tags:
+        - agents
+      summary: 获取预处理结果
+      parameters:
+        - name: task_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 预处理结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreprocessResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/structure-optimizer:
+    post:
+      tags:
+        - agents
+      summary: 结构优化Agent
+      description: 对用户输入的文档大纲进行结构化增强
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StructureOptimizeRequest'
+      responses:
+        '200':
+          description: 优化后的大纲
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptimizedOutlineResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /agents/information-retriever:
+    post:
+      tags:
+        - agents
+      summary: 信息检索Agent
+      description: 从知识库中检索相关信息，支持多种检索模式
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrievalRequest'
+      responses:
+        '200':
+          description: 检索结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /agents/draft-generator:
+    post:
+      tags:
+        - agents
+      summary: 草稿生成Agent
+      description: 综合大纲和信息源生成文稿草稿
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftGenerationRequest'
+      responses:
+        '202':
+          description: 生成任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /drafts/{draft_id}:
+    get:
+      tags:
+        - drafts
+      summary: 获取文稿
+      parameters:
+        - name: draft_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 文稿内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - drafts
+      summary: 更新文稿
+      parameters:
+        - name: draft_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftUpdateRequest'
+      responses:
+        '200':
+          description: 更新后的文稿
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /templates:
+    get:
+      tags:
+        - templates
+      summary: 获取文档模板列表
+      responses:
+        '200':
+          description: 模板列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TemplateResponse'
+    
+    post:
+      tags:
+        - templates
+      summary: 基于模板生成文档
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateGenerationRequest'
+      responses:
+        '202':
+          description: 生成任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /prompts/templates:
+    get:
+      tags:
+        - prompts
+      summary: 获取提示词模板列表
+      parameters:
+        - name: agent_type
+          in: query
+          schema:
+            type: string
+            enum: [document_preprocessor, structure_optimizer, information_retriever, draft_generator]
+      responses:
+        '200':
+          description: 提示词模板列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromptTemplateResponse'
+    
+    post:
+      tags:
+        - prompts
+      summary: 创建提示词模板
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptTemplateCreateRequest'
+      responses:
+        '201':
+          description: 提示词模板已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /prompts/templates/{template_id}:
+    get:
+      tags:
+        - prompts
+      summary: 获取提示词模板详情
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 提示词模板详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - prompts
+      summary: 更新提示词模板
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptTemplateUpdateRequest'
+      responses:
+        '200':
+          description: 提示词模板已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplateResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - prompts
+      summary: 删除提示词模板
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 提示词模板已删除
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /prompts/templates/{template_id}/test:
+    post:
+      tags:
+        - prompts
+      summary: 测试提示词模板
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptTemplateTestRequest'
+      responses:
+        '200':
+          description: 测试结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplateTestResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /prompts/strategies:
+    get:
+      tags:
+        - prompts
+      summary: 获取提示词策略列表
+      responses:
+        '200':
+          description: 提示词策略列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  strategies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromptStrategyResponse'
+    
+    post:
+      tags:
+        - prompts
+      summary: 创建提示词策略
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptStrategyCreateRequest'
+      responses:
+        '201':
+          description: 提示词策略已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptStrategyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /memory/interactions:
+    get:
+      tags:
+        - memory
+      summary: 获取交互历史
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 交互历史列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InteractionResponse'
+                  total:
+                    type: integer
+
+components:
+  schemas:
+    DocumentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_size:
+          type: integer
+        format:
+          type: string
+          enum: [PDF, HTML]
+        status:
+          type: string
+          enum: [PENDING, PARSING, INDEXED, FAILED]
+        uploaded_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+    
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: 检索查询
+        modes:
+          type: array
+          items:
+            type: string
+            enum: [vector, bm25, metadata, knowledge_graph]
+          description: 检索模式列表
+        limit:
+          type: integer
+          default: 10
+          maximum: 100
+    
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        total:
+          type: integer
+    
+    SearchResult:
+      type: object
+      properties:
+        content:
+          type: string
+        relevance_score:
+          type: number
+        source:
+          $ref: '#/components/schemas/SourceInfo'
+        retrieval_mode:
+          type: string
+    
+    SourceInfo:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        document_name:
+          type: string
+        chapter:
+          type: string
+        paragraph:
+          type: integer
+    
+    StructureOptimizeRequest:
+      type: object
+      required:
+        - outline
+      properties:
+        outline:
+          type: object
+          description: 文档大纲结构
+    
+    OptimizedOutlineResponse:
+      type: object
+      properties:
+        original_outline:
+          type: object
+        optimized_outline:
+          type: object
+        suggestions:
+          type: array
+          items:
+            type: string
+    
+    RetrievalRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        modes:
+          type: array
+          items:
+            type: string
+            enum: [vector, bm25, metadata, knowledge_graph]
+        limit:
+          type: integer
+          default: 10
+    
+    RetrievalResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+    
+    DraftGenerationRequest:
+      type: object
+      required:
+        - outline
+        - information_sources
+      properties:
+        outline:
+          type: object
+        information_sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        template_id:
+          type: string
+          format: uuid
+          nullable: true
+    
+    DraftResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        outline:
+          type: object
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceInfo'
+        created_at:
+          type: string
+          format: date-time
+    
+    DraftUpdateRequest:
+      type: object
+      properties:
+        content:
+          type: string
+    
+    TemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        structure:
+          type: object
+    
+    TemplateGenerationRequest:
+      type: object
+      required:
+        - template_id
+        - content
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        content:
+          type: object
+    
+    TaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+    
+    InteractionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_query:
+          type: string
+        system_response:
+          type: string
+        feedback:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+    
+    PreprocessRequest:
+      type: object
+      required:
+        - document_id
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        options:
+          type: object
+          properties:
+            remove_headers_footers:
+              type: boolean
+              default: true
+            remove_watermarks:
+              type: boolean
+              default: true
+            normalize_encoding:
+              type: boolean
+              default: true
+    
+    PreprocessResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+        cleaned_content:
+          type: string
+        quality_report:
+          type: object
+          properties:
+            original_size:
+              type: integer
+            cleaned_size:
+              type: integer
+            removed_elements:
+              type: array
+              items:
+                type: string
+            quality_score:
+              type: number
+    
+    PromptTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        agent_type:
+          type: string
+        content:
+          type: string
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              description:
+                type: string
+        version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        usage_stats:
+          type: object
+          properties:
+            total_uses:
+              type: integer
+            success_rate:
+              type: number
+            avg_response_quality:
+              type: number
+    
+    PromptTemplateCreateRequest:
+      type: object
+      required:
+        - name
+        - agent_type
+        - content
+      properties:
+        name:
+          type: string
+        agent_type:
+          type: string
+          enum: [document_preprocessor, structure_optimizer, information_retriever, draft_generator]
+        content:
+          type: string
+        variables:
+          type: array
+          items:
+            type: object
+    
+    PromptTemplateUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+        variables:
+          type: array
+          items:
+            type: object
+    
+    PromptTemplateTestRequest:
+      type: object
+      required:
+        - test_data
+      properties:
+        test_data:
+          type: object
+          description: 测试数据，用于填充提示词变量
+    
+    PromptTemplateTestResponse:
+      type: object
+      properties:
+        rendered_prompt:
+          type: string
+        agent_response:
+          type: string
+        response_quality:
+          type: number
+        execution_time:
+          type: number
+    
+    PromptStrategyResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        conditions:
+          type: object
+          description: 策略条件（文档类型、用户偏好等）
+        template_id:
+          type: string
+          format: uuid
+        priority:
+          type: integer
+    
+    PromptStrategyCreateRequest:
+      type: object
+      required:
+        - name
+        - conditions
+        - template_id
+      properties:
+        name:
+          type: string
+        conditions:
+          type: object
+        template_id:
+          type: string
+          format: uuid
+        priority:
+          type: integer
+          default: 0
+
+  parameters:
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    
+    Status:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [PENDING, PARSING, INDEXED, FAILED]
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: object
+    
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string

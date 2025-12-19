@@ -1,0 +1,38 @@
+{
+  "is_chart": true,
+  "chart_type": "bar_chart",
+  "has_accurate_data": true,
+  "description": "展示不同地区占比的柱状图，包含美国、中国、欧洲、日韩、澳大利亚、其他等类别",
+  "chart_data": [
+    {
+      "category": "美国",
+      "value": 34,
+      "unit": "%"
+    },
+    {
+      "category": "中国",
+      "value": 24,
+      "unit": "%"
+    },
+    {
+      "category": "欧洲",
+      "value": 22,
+      "unit": "%"
+    },
+    {
+      "category": "日韩",
+      "value": 7,
+      "unit": "%"
+    },
+    {
+      "category": "澳大利亚",
+      "value": 6,
+      "unit": "%"
+    },
+    {
+      "category": "其他",
+      "value": 7,
+      "unit": "%"
+    }
+  ]
+}

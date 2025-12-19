@@ -1,0 +1,98 @@
+{
+  "is_chart": true,
+  "chart_type": "bar_chart",
+  "has_accurate_data": true,
+  "description": "堆叠柱状图展示了2017至2022年不同类型储能（抽水蓄能、新型储能、熔融盐储能）的装机容量（GW）变化，其中抽水蓄能占比最大，新型储能增长显著，熔融盐储能保持稳定。",
+  "chart_data": [
+    {
+      "category": "2017-抽水蓄能",
+      "value": 168,
+      "unit": "GW"
+    },
+    {
+      "category": "2017-新型储能",
+      "value": 4,
+      "unit": "GW"
+    },
+    {
+      "category": "2017-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    },
+    {
+      "category": "2018-抽水蓄能",
+      "value": 171,
+      "unit": "GW"
+    },
+    {
+      "category": "2018-新型储能",
+      "value": 8,
+      "unit": "GW"
+    },
+    {
+      "category": "2018-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    },
+    {
+      "category": "2019-抽水蓄能",
+      "value": 171,
+      "unit": "GW"
+    },
+    {
+      "category": "2019-新型储能",
+      "value": 11,
+      "unit": "GW"
+    },
+    {
+      "category": "2019-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    },
+    {
+      "category": "2020-抽水蓄能",
+      "value": 173,
+      "unit": "GW"
+    },
+    {
+      "category": "2020-新型储能",
+      "value": 15,
+      "unit": "GW"
+    },
+    {
+      "category": "2020-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    },
+    {
+      "category": "2021-抽水蓄能",
+      "value": 181,
+      "unit": "GW"
+    },
+    {
+      "category": "2021-新型储能",
+      "value": 26,
+      "unit": "GW"
+    },
+    {
+      "category": "2021-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    },
+    {
+      "category": "2022-抽水蓄能",
+      "value": 188,
+      "unit": "GW"
+    },
+    {
+      "category": "2022-新型储能",
+      "value": 46,
+      "unit": "GW"
+    },
+    {
+      "category": "2022-熔融盐储能",
+      "value": 3,
+      "unit": "GW"
+    }
+  ]
+}

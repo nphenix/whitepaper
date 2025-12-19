@@ -1,0 +1,58 @@
+{
+  "is_chart": true,
+  "chart_type": "bar_chart",
+  "has_accurate_data": true,
+  "description": "2021年度国内新增投运装机量排行榜（中国储能系统集成商）的柱状图，展示各集成商的装机量（单位：MW）",
+  "chart_data": [
+    {
+      "category": "海博思创",
+      "value": 520,
+      "unit": "MW"
+    },
+    {
+      "category": "电工时代",
+      "value": 480,
+      "unit": "MW"
+    },
+    {
+      "category": "科华数能",
+      "value": 450,
+      "unit": "MW"
+    },
+    {
+      "category": "阳光电源",
+      "value": 400,
+      "unit": "MW"
+    },
+    {
+      "category": "新源智储",
+      "value": 160,
+      "unit": "MW"
+    },
+    {
+      "category": "融和元储",
+      "value": 150,
+      "unit": "MW"
+    },
+    {
+      "category": "远景能源",
+      "value": 140,
+      "unit": "MW"
+    },
+    {
+      "category": "平高集团",
+      "value": 130,
+      "unit": "MW"
+    },
+    {
+      "category": "库博能源",
+      "value": 120,
+      "unit": "MW"
+    },
+    {
+      "category": "天合储能",
+      "value": 100,
+      "unit": "MW"
+    }
+  ]
+}

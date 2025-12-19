@@ -1,0 +1,77 @@
+# 生成命令: /speckit.implement T008
+# 生成时间: 2025-12-07
+# 来源: specs/001-multi-agent-doc-system/tasks.md
+
+# Python 编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# 缓存和临时文件
+.cache/
+.cursor/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.specify/
+
+# 数据目录中的缓存和临时文件
+data/cache/
+data/intermediate/
+data/logs/
+data/output/
+
+# 存储目录
+storage/
+
+# 依赖和构建产物
+whitepaper.egg-info/
+build/
+dist/
+*.egg-info/
+.coverage
+
+# 日志文件
+*.log
+logs/
+
+# 文档目录（根据用户反馈）
+docs/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 测试覆盖率和临时文件
+htmlcov/
+.tox/
+.coverage.*
+
+# 禁止在根目录创建测试/修复/验证脚本
+# 这些脚本必须放在 tests/ 或 scripts/ 目录下
+/test_*.py
+/fix_*.py
+/check_*.py
+/validate_*.py
+/repair_*.py
+/format_*.py
+/lint_*.py
+/ruff_*.py
+/mypy_*.py

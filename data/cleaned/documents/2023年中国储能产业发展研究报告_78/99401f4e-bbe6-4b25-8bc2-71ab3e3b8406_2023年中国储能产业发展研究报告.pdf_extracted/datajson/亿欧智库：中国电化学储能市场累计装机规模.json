@@ -1,0 +1,63 @@
+{
+  "is_chart": true,
+  "chart_type": "bar_chart",
+  "has_accurate_data": true,
+  "description": "展示2012年至2022年装机规模（MW）的柱状图，同时包含年增长率折线图（仅分析柱状图部分）",
+  "chart_data": [
+    {
+      "category": "2012",
+      "value": 0,
+      "unit": "MW"
+    },
+    {
+      "category": "2013",
+      "value": 0,
+      "unit": "MW"
+    },
+    {
+      "category": "2014",
+      "value": 0,
+      "unit": "MW"
+    },
+    {
+      "category": "2015",
+      "value": 0,
+      "unit": "MW"
+    },
+    {
+      "category": "2016",
+      "value": 0,
+      "unit": "MW"
+    },
+    {
+      "category": "2017",
+      "value": 389.8,
+      "unit": "MW"
+    },
+    {
+      "category": "2018",
+      "value": 1079.7,
+      "unit": "MW"
+    },
+    {
+      "category": "2019",
+      "value": 1709.6,
+      "unit": "MW"
+    },
+    {
+      "category": "2020",
+      "value": 3283.5,
+      "unit": "MW"
+    },
+    {
+      "category": "2021",
+      "value": 5729.7,
+      "unit": "MW"
+    },
+    {
+      "category": "2022",
+      "value": 11659.7,
+      "unit": "MW"
+    }
+  ]
+}

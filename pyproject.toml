@@ -1,0 +1,304 @@
+# 生成命令: /speckit.implement T002
+# 生成时间: 2025-12-06
+# 来源: specs/001-multi-agent-doc-system/tasks.md
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whitepaper"
+version = "0.1.0"
+description = "多Agent协作的文档处理与生成系统"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "WhitePaper Team", email = "team@whitepaper.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+]
+requires-python = ">=3.12"
+dependencies = [
+    # 核心框架
+    "langchain>=1.1.1",
+    "langchain-core>=1.1.1",
+    "langchain-openai>=1.1.0",
+    "langgraph>=1.0.3",
+    "langmem>=0.0.3",
+    "llama-index>=0.14.6",
+    
+    # Web框架和API
+    "fastapi>=0.122.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    
+    # 异步任务队列
+    "arq>=0.25.0",
+    "redis>=5.0.1",
+    
+    # 数据库和存储
+    "chromadb>=0.4.18",
+    "aiosqlite>=0.19.0",
+    "sqlalchemy>=2.0.23",
+    
+    # 图数据处理
+    "networkx>=3.2.1",
+    
+    # 文档处理
+    "pypdf2>=3.0.1",
+    "pdfplumber>=0.10.3",
+    "python-docx>=1.1.0",
+    "beautifulsoup4>=4.12.2",
+    "readability-lxml>=0.8.1",
+    "trafilatura>=1.6.4",
+    
+    # OCR和图像处理
+    "paddleocr>=2.7.0",
+    "pillow>=10.1.0",
+    "layoutparser>=0.3.4",
+    
+    # 向量检索和搜索
+    "rank-bm25>=0.2.2",
+    "sentence-transformers>=2.2.2",
+    
+    # 爬虫工具
+    "scrapy>=2.11.0",
+    "aiohttp>=3.9.1",
+    "requests>=2.31.0",
+    
+    # 数据处理
+    "pandas>=2.1.4",
+    "numpy>=1.25.2",
+    
+    # 配置和验证
+    "pydantic>=2.5.2",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    
+    # CLI工具
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    
+    # 日志和监控
+    "structlog>=23.2.0",
+    "tenacity>=8.2.3",
+    
+    # 安全
+    "cryptography>=41.0.8",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    
+    # 其他工具
+    "click>=8.1.7",
+    "jinja2>=3.1.2",
+    "markdown>=3.5.1",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    # 代码质量工具
+    "ruff>=0.1.8",
+    "mypy>=1.8.0",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    
+    # 测试框架
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.2",
+    
+    # 文档生成
+    "sphinx>=7.2.6",
+    "sphinx-rtd-theme>=1.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/whitepaper/whitepaper"
+Documentation = "https://whitepaper.readthedocs.io/"
+Repository = "https://github.com/whitepaper/whitepaper.git"
+"Bug Tracker" = "https://github.com/whitepaper/whitepaper/issues"
+
+[project.scripts]
+whitepaper = "cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "cli*"]
+
+[tool.ruff]
+# 目标Python版本
+target-version = "py312"
+# 行长度限制
+line-length = 88
+# 启用的规则集
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+# 忽略的规则
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.isort]
+known-first-party = ["src", "cli"]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+# Python版本
+python_version = "3.12"
+
+# 严格模式设置
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+# 导入发现
+mypy_path = "src,cli"
+
+# 文件匹配模式
+files = "src,cli"
+
+# 报告设置
+show_error_codes = true
+show_column_numbers = true
+color_output = true
+error_summary = true
+
+# 第三方库模块忽略类型检查
+[[tool.mypy.overrides]]
+module = [
+    "chromadb.*",
+    "llama_index.*",
+    "langchain.*",
+    "langgraph.*",
+    "langmem.*",
+    "paddleocr.*",
+    "layoutparser.*",
+    "scrapy.*",
+    "trafilatura.*",
+    "networkx.*",
+    "pandas.*",
+    "numpy.*",
+    "pil.*",
+    "pypdf2.*",
+    "pdfplumber.*",
+    "beautifulsoup4.*",
+    "readability.*",
+    "rank_bm25.*",
+    "sentence_transformers.*",
+    "aiohttp.*",
+    "requests.*",
+    "uvicorn.*",
+    "arq.*",
+    "redis.*",
+    "aiosqlite.*",
+    "sqlalchemy.*",
+    "typer.*",
+    "rich.*",
+    "structlog.*",
+    "tenacity.*",
+    "cryptography.*",
+    "passlib.*",
+    "jose.*",
+    "click.*",
+    "jinja2.*",
+    "markdown.*",
+    "pyyaml.*",
+    "pytest.*",
+    "black.*",
+    "isort.*",
+    "magic.*",
+    "filetype.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.infrastructure.storage.*",
+    "scripts.*",
+    "src.infrastructure.preprocessing.error_handler",
+    "src.shared.exceptions.*",
+]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src", "cli"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

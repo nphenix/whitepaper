@@ -1,0 +1,49 @@
+{
+  "is_chart": true,
+  "chart_type": "pie_chart",
+  "has_accurate_data": true,
+  "description": "包含两个饼图，第一个展示主要储能类型的占比，第二个展示锂电子电池的细分占比",
+  "chart_data": [
+    {
+      "_chart_separator": "chart_1"
+    },
+    {
+      "label": "抽水蓄能",
+      "value": 86.3,
+      "unit": "%"
+    },
+    {
+      "label": "熔融盐储能",
+      "value": 1.2,
+      "unit": "%"
+    },
+    {
+      "label": "锂电子电池",
+      "value": 12.5,
+      "unit": "%"
+    },
+    {
+      "_chart_separator": "chart_2"
+    },
+    {
+      "label": "锂电子电池（子类别）",
+      "value": 89.7,
+      "unit": "%"
+    },
+    {
+      "label": "铅蓄电池",
+      "value": 3.2,
+      "unit": "%"
+    },
+    {
+      "label": "压缩空气",
+      "value": 5.9,
+      "unit": "%"
+    },
+    {
+      "label": "其他",
+      "value": 1.2,
+      "unit": "%"
+    }
+  ]
+}

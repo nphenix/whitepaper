@@ -1,0 +1,53 @@
+{
+  "is_chart": true,
+  "chart_type": "bar_chart",
+  "has_accurate_data": true,
+  "description": "储能新增装机规模（GWh）的年度数据柱状图，展示2017至2025年（含预测）的装机规模变化",
+  "chart_data": [
+    {
+      "category": "2017",
+      "value": 3,
+      "unit": "GWh"
+    },
+    {
+      "category": "2018",
+      "value": 8,
+      "unit": "GWh"
+    },
+    {
+      "category": "2019",
+      "value": 7,
+      "unit": "GWh"
+    },
+    {
+      "category": "2020",
+      "value": 11,
+      "unit": "GWh"
+    },
+    {
+      "category": "2021",
+      "value": 25,
+      "unit": "GWh"
+    },
+    {
+      "category": "2022",
+      "value": 72,
+      "unit": "GWh"
+    },
+    {
+      "category": "2023E",
+      "value": 137,
+      "unit": "GWh"
+    },
+    {
+      "category": "2024E",
+      "value": 231,
+      "unit": "GWh"
+    },
+    {
+      "category": "2025E",
+      "value": 348,
+      "unit": "GWh"
+    }
+  ]
+}

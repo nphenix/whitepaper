@@ -47,6 +47,7 @@ class Document(BaseModel):
     file_size: int = Field(..., gt=0, description="文件大小(字节)")
     mime_type: str | None = Field(None, description="MIME类型")
     format: DocumentFormat = Field(..., description="文档格式")
+    content: str | None = Field(None, description="文档内容")
 
     # 时间字段
     uploaded_at: datetime = Field(

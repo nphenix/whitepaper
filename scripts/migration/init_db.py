@@ -15,7 +15,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .migration_utils import create_migration_manager
+from migration_utils import create_migration_manager
 
 # 初始化 Rich Console
 console = Console()

@@ -261,13 +261,14 @@ def _add_routes(app: FastAPI) -> None:
         }
 
     # 添加其他路由
-    from .routes import documents
+    from .routes import documents, knowledge_base
 
     app.include_router(documents.router)
+    # 添加知识库路由
+    app.include_router(knowledge_base.router)
     # TODO: 添加其他路由
-    # from .routes import agents, knowledge_base
+    # from .routes import agents
     # app.include_router(agents.router, prefix='/api/v1/agents', tags=['Agent'])
-    # app.include_router(knowledge_base.router, prefix='/api/v1/knowledge-base', tags=['知识库'])
 
 
 def _add_static_files(app: FastAPI) -> None:

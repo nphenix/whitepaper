@@ -1,0 +1,196 @@
+{
+  "version": "1.0",
+  "description": "Few-shot示例库，用于引导LLM进行实体和关系提取",
+  "examples": [
+    {
+      "domain": "energy_storage",
+      "text": "锂离子电池是一种重要的储能技术，广泛应用于电动汽车和储能电站。宁德时代是全球领先的电池制造商，其生产的电池具有高能量密度和长循环寿命的特点。",
+      "entities": [
+        {
+          "name": "锂离子电池",
+          "type": "ENERGY_STORAGE_TECHNOLOGY",
+          "description": "一种重要的储能技术",
+          "aliases": ["锂电池", "Li-ion电池"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "宁德时代",
+          "type": "ENERGY_STORAGE_MANUFACTURER",
+          "description": "全球领先的电池制造商",
+          "aliases": ["CATL"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "电动汽车",
+          "type": "ENERGY_STORAGE_APPLICATION",
+          "description": "锂离子电池的应用领域",
+          "aliases": ["EV"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "储能电站",
+          "type": "ENERGY_STORAGE_APPLICATION",
+          "description": "锂离子电池的应用领域",
+          "aliases": [],
+          "properties": {},
+          "confidence": 1.0
+        }
+      ],
+      "relations": [
+        {
+          "source": "锂离子电池",
+          "target": "储能技术",
+          "relation": "IS_A",
+          "description": "锂离子电池是一种储能技术",
+          "confidence": 1.0
+        },
+        {
+          "source": "锂离子电池",
+          "target": "电动汽车",
+          "relation": "USES",
+          "description": "锂离子电池应用于电动汽车",
+          "confidence": 1.0
+        },
+        {
+          "source": "锂离子电池",
+          "target": "储能电站",
+          "relation": "USES",
+          "description": "锂离子电池应用于储能电站",
+          "confidence": 1.0
+        },
+        {
+          "source": "宁德时代",
+          "target": "锂离子电池",
+          "relation": "PRODUCES",
+          "description": "宁德时代生产锂离子电池",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "domain": "energy_storage",
+      "text": "抽水蓄能是目前最成熟的储能技术之一，具有大规模、长寿命的特点。中国在抽水蓄能领域发展迅速，已建成多个大型抽水蓄能电站，如天荒坪抽水蓄能电站。",
+      "entities": [
+        {
+          "name": "抽水蓄能",
+          "type": "ENERGY_STORAGE_TECHNOLOGY",
+          "description": "目前最成熟的储能技术之一",
+          "aliases": ["抽蓄", "Pumped Storage"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "中国",
+          "type": "LOCATION",
+          "description": "国家",
+          "aliases": ["中华人民共和国"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "天荒坪抽水蓄能电站",
+          "type": "ENERGY_STORAGE_PROJECT",
+          "description": "大型抽水蓄能电站",
+          "aliases": [],
+          "properties": {},
+          "confidence": 1.0
+        }
+      ],
+      "relations": [
+        {
+          "source": "抽水蓄能",
+          "target": "储能技术",
+          "relation": "IS_A",
+          "description": "抽水蓄能是一种储能技术",
+          "confidence": 1.0
+        },
+        {
+          "source": "中国",
+          "target": "抽水蓄能",
+          "relation": "WORKS_ON",
+          "description": "中国在抽水蓄能领域发展迅速",
+          "confidence": 1.0
+        },
+        {
+          "source": "天荒坪抽水蓄能电站",
+          "target": "抽水蓄能",
+          "relation": "IMPLEMENTS",
+          "description": "天荒坪抽水蓄能电站使用抽水蓄能技术",
+          "confidence": 1.0
+        },
+        {
+          "source": "天荒坪抽水蓄能电站",
+          "target": "中国",
+          "relation": "LOCATED_IN",
+          "description": "天荒坪抽水蓄能电站位于中国",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "domain": null,
+      "text": "清华大学是一所位于北京的著名大学，成立于1911年。该校在人工智能和计算机科学领域具有世界领先的研究水平。",
+      "entities": [
+        {
+          "name": "清华大学",
+          "type": "ORGANIZATION",
+          "description": "一所位于北京的著名大学",
+          "aliases": ["清华", "Tsinghua University"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "北京",
+          "type": "LOCATION",
+          "description": "城市",
+          "aliases": ["北京市"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "人工智能",
+          "type": "CONCEPT",
+          "description": "研究领域",
+          "aliases": ["AI"],
+          "properties": {},
+          "confidence": 1.0
+        },
+        {
+          "name": "计算机科学",
+          "type": "CONCEPT",
+          "description": "研究领域",
+          "aliases": ["CS"],
+          "properties": {},
+          "confidence": 1.0
+        }
+      ],
+      "relations": [
+        {
+          "source": "清华大学",
+          "target": "北京",
+          "relation": "LOCATED_IN",
+          "description": "清华大学位于北京",
+          "confidence": 1.0
+        },
+        {
+          "source": "清华大学",
+          "target": "人工智能",
+          "relation": "WORKS_ON",
+          "description": "清华大学在人工智能领域进行研究",
+          "confidence": 1.0
+        },
+        {
+          "source": "清华大学",
+          "target": "计算机科学",
+          "relation": "WORKS_ON",
+          "description": "清华大学在计算机科学领域进行研究",
+          "confidence": 1.0
+        }
+      ]
+    }
+  ]
+}
+

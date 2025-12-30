@@ -1,1 +1,0 @@
-invalid type: string "[{\"page_idx\": 0, \"type\": \"heading\", \"content\": \"# 第二章\"}, {\"page_idx\": 1, \"type\": \"paragraph\", \"content\": \"这是第二章的内容，包含更详细的信息。\\n\\��用于分块测试的长段落。这是一个用于分块测试的长段落。这是一个用于分块测试的长段落。这是一个用于分块测试的长段落。", expected a bool

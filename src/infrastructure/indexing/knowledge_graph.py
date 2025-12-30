@@ -5,18 +5,18 @@
 """
 知识图谱构建器实现 (T049)
 
-该模块实现知识图谱构建功能，使用LLM进行实体关系提取，并将结果存储到NetworkX图数据库中。
+该模块实现知识图谱构建功能,使用LLM进行实体关系提取,并将结果存储到NetworkX图数据库中.
 
 设计目标:
-- 使用LLM进行实体和关系提取（必须从T009创建的llm_service获取模型实例）
-- 集成NetworkX适配器（T014）存储知识图谱
+- 使用LLM进行实体和关系提取(必须从T009创建的llm_service获取模型实例)
+- 集成NetworkX适配器(T014)存储知识图谱
 - 从LlamaIndex Node对象中提取实体和关系
 - 支持实体消歧和合并
 - 支持通用实体类型和储能产业特定实体类型
 - 实现完善的错误处理和日志记录
 
 参考LlamaIndex最佳实践:
-- 使用结构化输出（Pydantic模型）确保提取结果格式一致
+- 使用结构化输出(Pydantic模型)确保提取结果格式一致
 - 支持批量处理和异步处理
 - 遵循LlamaIndex知识图谱提取模式
 """
@@ -88,7 +88,7 @@ class EntityType(str, Enum):
 
 
 class RelationType(str, Enum):
-    """关系类型枚举（通用关系）"""
+    """关系类型枚举(通用关系)"""
 
     PART_OF = "PART_OF"
     HAS = "HAS"
@@ -133,18 +133,18 @@ class ExtractedRelation:
 
 
 class EntityExtractionResult(BaseModel):
-    """实体提取结果（结构化输出）"""
+    """实体提取结果(结构化输出)"""
 
     entities: list[dict[str, Any]] = Field(
-        description="提取的实体列表，每个实体包含name、type、description等字段"
+        description="提取的实体列表,每个实体包含name,type,description等字段"
     )
 
 
 class RelationExtractionResult(BaseModel):
-    """关系提取结果（结构化输出）"""
+    """关系提取结果(结构化输出)"""
 
     relations: list[dict[str, Any]] = Field(
-        description="提取的关系列表，每个关系包含source、target、relation、description等字段"
+        description="提取的关系列表,每个关系包含source,target,relation,description等字段"
     )
 
 
@@ -152,7 +152,7 @@ class KnowledgeGraphBuilder:
     """
     知识图谱构建器
 
-    使用LLM从LlamaIndex Node对象中提取实体和关系，并将结果存储到NetworkX图数据库中。
+    使用LLM从LlamaIndex Node对象中提取实体和关系,并将结果存储到NetworkX图数据库中.
 
     典型用法:
         >>> builder = KnowledgeGraphBuilder(graph_name="knowledge_graph")
@@ -173,16 +173,19 @@ class KnowledgeGraphBuilder:
         初始化知识图谱构建器
 
         Args:
-            graph_name: 图名称，用于标识不同的知识图谱
-            graph_adapter: NetworkX适配器，如果为None则创建新实例
-            llm_service: LLM服务，如果为None则使用全局实例
+            graph_name: 图名称,用于标识不同的知识图谱
+            graph_adapter: NetworkX适配器,如果为None则创建新实例
+            llm_service: LLM服务,如果为None则使用全局实例
             max_entities_per_chunk: 每个块最多提取的实体数量
             max_relations_per_chunk: 每个块最多提取的关系数量
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use KnowledgeGraphBuilder."
+            )
+            raise ImportError(
+                msg
             )
 
         self.graph_name = graph_name
@@ -194,7 +197,7 @@ class KnowledgeGraphBuilder:
         self.max_entities_per_chunk = max_entities_per_chunk
         self.max_relations_per_chunk = max_relations_per_chunk
 
-        # 实体名称到节点ID的映射（用于实体消歧）
+        # 实体名称到节点ID的映射(用于实体消歧)
         self._entity_name_to_id: dict[str, str] = {}
 
         logger.debug(
@@ -218,7 +221,7 @@ class KnowledgeGraphBuilder:
             show_progress: 是否显示进度
 
         Returns:
-            构建统计信息字典，包含实体数量、关系数量等
+            构建统计信息字典,包含实体数量,关系数量等
         """
         if not nodes:
             logger.warning("空的 Node 列表, 不执行知识图谱构建")
@@ -335,7 +338,7 @@ class KnowledgeGraphBuilder:
             from langchain_core.messages import HumanMessage, SystemMessage
 
             messages = [
-                SystemMessage(content="你是一个专业的实体提取助手，能够从文本中准确提取实体信息。"),
+                SystemMessage(content="你是一个专业的实体提取助手,能够从文本中准确提取实体信息."),
                 HumanMessage(content=prompt),
             ]
 
@@ -415,7 +418,7 @@ class KnowledgeGraphBuilder:
             from langchain_core.messages import HumanMessage, SystemMessage
 
             messages = [
-                SystemMessage(content="你是一个专业的关系提取助手，能够从文本中准确提取实体之间的关系。"),
+                SystemMessage(content="你是一个专业的关系提取助手,能够从文本中准确提取实体之间的关系."),
                 HumanMessage(content=prompt),
             ]
 
@@ -464,22 +467,22 @@ class KnowledgeGraphBuilder:
     def _build_entity_extraction_prompt(self, text: str) -> str:
         """构建实体提取提示词"""
         entity_types = ", ".join([e.value for e in EntityType])
-        return f"""请从以下文本中提取所有实体。
+        return f"""请从以下文本中提取所有实体.
 
 要求:
-1. 识别所有实体，包括人物、组织机构、概念、事件、地点、时间等
-2. 对于储能产业相关文本，优先识别储能产业特定实体类型（如储能技术、储能设备、储能项目等）
+1. 识别所有实体,包括人物,组织机构,概念,事件,地点,时间等
+2. 对于储能产业相关文本,优先识别储能产业特定实体类型(如储能技术,储能设备,储能项目等)
 3. 每个实体包含以下信息:
-   - name: 实体名称（必填）
-   - type: 实体类型（必填，从以下类型中选择: {entity_types}）
-   - description: 实体描述（可选）
-   - aliases: 实体别名列表（可选）
-   - properties: 扩展属性（可选，JSON格式）
-   - confidence: 提取置信度（0.0-1.0，默认1.0）
+   - name: 实体名称(必填)
+   - type: 实体类型(必填,从以下类型中选择: {entity_types})
+   - description: 实体描述(可选)
+   - aliases: 实体别名列表(可选)
+   - properties: 扩展属性(可选,JSON格式)
+   - confidence: 提取置信度(0.0-1.0,默认1.0)
 
 4. 最多提取 {self.max_entities_per_chunk} 个实体
 
-输出格式（JSON）:
+输出格式(JSON):
 {{
   "entities": [
     {{
@@ -496,7 +499,7 @@ class KnowledgeGraphBuilder:
 文本内容:
 {text}
 
-请直接输出JSON格式，不要包含其他说明文字。"""
+请直接输出JSON格式,不要包含其他说明文字."""
 
     def _build_relation_extraction_prompt(
         self,
@@ -506,7 +509,7 @@ class KnowledgeGraphBuilder:
         """构建关系提取提示词"""
         relation_types = ", ".join([r.value for r in RelationType])
         entity_list = ", ".join(entity_names)
-        return f"""请从以下文本中提取实体之间的关系。
+        return f"""请从以下文本中提取实体之间的关系.
 
 已识别的实体: {entity_list}
 
@@ -514,15 +517,15 @@ class KnowledgeGraphBuilder:
 1. 识别所有实体对之间的关系
 2. 关系类型从以下类型中选择: {relation_types}
 3. 每个关系包含以下信息:
-   - source: 源实体名称（必填）
-   - target: 目标实体名称（必填）
-   - relation: 关系类型（必填）
-   - description: 关系描述（可选）
-   - confidence: 提取置信度（0.0-1.0，默认1.0）
+   - source: 源实体名称(必填)
+   - target: 目标实体名称(必填)
+   - relation: 关系类型(必填)
+   - description: 关系描述(可选)
+   - confidence: 提取置信度(0.0-1.0,默认1.0)
 
 4. 最多提取 {self.max_relations_per_chunk} 个关系
 
-输出格式（JSON）:
+输出格式(JSON):
 {{
   "relations": [
     {{
@@ -538,10 +541,10 @@ class KnowledgeGraphBuilder:
 文本内容:
 {text}
 
-请直接输出JSON格式，不要包含其他说明文字。"""
+请直接输出JSON格式,不要包含其他说明文字."""
 
     def _parse_entities_from_text(self, text: str) -> list[dict[str, Any]]:
-        """从文本中解析实体（降级方案）"""
+        """从文本中解析实体(降级方案)"""
         # 首先尝试直接解析整个文本
         try:
             result = json.loads(text.strip())
@@ -553,14 +556,14 @@ class KnowledgeGraphBuilder:
             pass
 
         # 尝试使用正则表达式提取JSON对象
-        # 匹配从第一个 { 开始，使用平衡括号匹配完整的JSON对象
+        # 匹配从第一个 { 开始,使用平衡括号匹配完整的JSON对象
         brace_count = 0
-        start_idx = text.find('{')
+        start_idx = text.find("{")
         if start_idx >= 0:
             for i in range(start_idx, len(text)):
-                if text[i] == '{':
+                if text[i] == "{":
                     brace_count += 1
-                elif text[i] == '}':
+                elif text[i] == "}":
                     brace_count -= 1
                     if brace_count == 0:
                         json_str = text[start_idx:i + 1]
@@ -574,7 +577,7 @@ class KnowledgeGraphBuilder:
                             pass
                         break
 
-        # 尝试提取entities数组（最后的手段）
+        # 尝试提取entities数组(最后的手段)
         entities_match = re.search(r'"entities"\s*:\s*\[(.*?)\]', text, re.DOTALL)
         if entities_match:
             # 尝试解析数组内容
@@ -593,7 +596,7 @@ class KnowledgeGraphBuilder:
         return []
 
     def _parse_relations_from_text(self, text: str) -> list[dict[str, Any]]:
-        """从文本中解析关系（降级方案）"""
+        """从文本中解析关系(降级方案)"""
         # 首先尝试直接解析整个文本
         try:
             result = json.loads(text.strip())
@@ -605,14 +608,14 @@ class KnowledgeGraphBuilder:
             pass
 
         # 尝试使用正则表达式提取JSON对象
-        # 匹配从第一个 { 开始，使用平衡括号匹配完整的JSON对象
+        # 匹配从第一个 { 开始,使用平衡括号匹配完整的JSON对象
         brace_count = 0
-        start_idx = text.find('{')
+        start_idx = text.find("{")
         if start_idx >= 0:
             for i in range(start_idx, len(text)):
-                if text[i] == '{':
+                if text[i] == "{":
                     brace_count += 1
-                elif text[i] == '}':
+                elif text[i] == "}":
                     brace_count -= 1
                     if brace_count == 0:
                         json_str = text[start_idx:i + 1]
@@ -626,7 +629,7 @@ class KnowledgeGraphBuilder:
                             pass
                         break
 
-        # 尝试提取relations数组（最后的手段）
+        # 尝试提取relations数组(最后的手段)
         relations_match = re.search(r'"relations"\s*:\s*\[(.*?)\]', text, re.DOTALL)
         if relations_match:
             # 尝试解析数组内容
@@ -660,7 +663,7 @@ class KnowledgeGraphBuilder:
         Returns:
             实体节点ID
         """
-        # 实体消歧：检查是否已存在同名实体
+        # 实体消歧:检查是否已存在同名实体
         entity_id = self._entity_name_to_id.get(entity.name)
         if entity_id:
             # 更新现有实体
@@ -705,7 +708,8 @@ class KnowledgeGraphBuilder:
 
         except Exception as exc:
             logger.error("添加实体失败: name=%s, error=%s", entity.name, exc)
-            raise KnowledgeGraphError(f"添加实体失败: {exc}") from exc
+            msg = f"添加实体失败: {exc}"
+            raise KnowledgeGraphError(msg) from exc
 
         return entity_id
 
@@ -769,7 +773,8 @@ class KnowledgeGraphBuilder:
                 relation.target_entity,
                 exc,
             )
-            raise KnowledgeGraphError(f"添加关系失败: {exc}") from exc
+            msg = f"添加关系失败: {exc}"
+            raise KnowledgeGraphError(msg) from exc
 
     def get_entities_by_type(
         self,
@@ -830,7 +835,12 @@ class KnowledgeGraphBuilder:
             return []
 
         neighbors = self.graph_adapter.get_neighbors(entity_id)
-        return [self.graph_adapter.get_node(nid) for nid in neighbors if self.graph_adapter.get_node(nid)]
+        result = []
+        for nid in neighbors:
+            node = self.graph_adapter.get_node(nid)
+            if node:
+                result.append(node)
+        return result
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -852,5 +862,6 @@ class KnowledgeGraphBuilder:
             }
         except Exception as exc:
             logger.error("获取统计信息失败: %s", exc, exc_info=True)
-            raise KnowledgeGraphError(f"获取统计信息失败: {exc}") from exc
+            msg = f"获取统计信息失败: {exc}"
+            raise KnowledgeGraphError(msg) from exc
 

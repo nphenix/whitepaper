@@ -1,7 +1,7 @@
 """配置管理模块
 
-提供统一的配置管理和 LLM 服务。
-使用 Pydantic Settings 自动加载环境变量和 .env 文件。
+提供统一的配置管理和 LLM 服务.
+使用 Pydantic Settings 自动加载环境变量和 .env 文件.
 """
 
 from .llm_service import (

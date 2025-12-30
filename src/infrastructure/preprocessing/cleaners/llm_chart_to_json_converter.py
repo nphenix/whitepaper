@@ -1,10 +1,10 @@
 """
 基于LLM的图表转JSON转换器(支持GLM-4.6V流式调用)
 
-使用GLM-4.6V的流式调用功能实现图表识别和数据提取。
-支持多模态输入(图像+文本),用于图表识别和结构化数据提取。
+使用GLM-4.6V的流式调用功能实现图表识别和数据提取.
+支持多模态输入(图像+文本),用于图表识别和结构化数据提取.
 
-本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符。
+本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符.
 
 生成命令: /speckit.implement T031B
 生成时间: 2025-12-16
@@ -32,12 +32,12 @@ logger = get_logger(__name__)
 class ChartData(BaseModel):
     """图表数据结构化输出模型
 
-    模型字段设计适应LLM实际返回的数据格式,而不是强制LLM返回特定格式。
+    模型字段设计适应LLM实际返回的数据格式,而不是强制LLM返回特定格式.
     """
 
     chart_type: str | None = Field(
         default=None,
-        description="图表类型(如:bar_chart, line_chart, pie_chart, scatter_plot等)。如果LLM未返回则为None",
+        description="图表类型(如:bar_chart, line_chart, pie_chart, scatter_plot等).如果LLM未返回则为None",
     )
     title: str | None = Field(
         default=None, description="图表标题(如果LLM未返回则为None)"
@@ -49,7 +49,7 @@ class ChartData(BaseModel):
         description="数据系列列表,每个系列包含name和data(如果LLM未返回则为None)",
     )
     categories: list[str] | None = Field(
-        default=None, description="分类标签(用于柱状图、饼图等)"
+        default=None, description="分类标签(用于柱状图,饼图等)"
     )
     confidence_score: float | None = Field(
         default=None, description="识别置信度(0-1之间,如果LLM未返回,则为None)"
@@ -63,7 +63,7 @@ class ChartData(BaseModel):
 class ChartAnalysisResult(BaseModel):
     """图表分析结果
 
-    模型字段设计适应LLM实际返回的数据格式,而不是强制LLM返回特定格式。
+    模型字段设计适应LLM实际返回的数据格式,而不是强制LLM返回特定格式.
     """
 
     is_chart: bool = Field(description="是否为图表")
@@ -77,7 +77,7 @@ class ChartAnalysisResult(BaseModel):
     description: str | None = Field(default=None, description="图表描述")
     chart_data: Any | None = Field(
         default=None,
-        description="结构化图表数据(可以是ChartData对象、字典或列表,适应LLM返回格式)",
+        description="结构化图表数据(可以是ChartData对象,字典或列表,适应LLM返回格式)",
     )
 
 
@@ -85,7 +85,7 @@ def extract_json_from_content(content: str) -> dict[str, Any]:
     """直接将LLM返回的内容按JSON解析
 
     假设LLM已经严格按照提示词返回合法JSON字符串,
-    不再做复杂的“抠JSON”逻辑。
+    不再做复杂的"抠JSON"逻辑.
 
     Args:
         content: LLM响应内容(应为JSON字符串)
@@ -104,10 +104,10 @@ class LLMChartToJsonConverter:
     """
     基于LLM的图表转JSON转换器(支持GLM-4.6V流式调用)
 
-    支持多模态输入(图像+文本),使用GLM-4.6V的流式调用功能。
-    用于图表识别和数据提取,将文档中的图表转换为结构化JSON格式。
+    支持多模态输入(图像+文本),使用GLM-4.6V的流式调用功能.
+    用于图表识别和数据提取,将文档中的图表转换为结构化JSON格式.
 
-    必须从T009创建的llm_service获取模型实例。
+    必须从T009创建的llm_service获取模型实例.
     """
 
     def __init__(
@@ -237,7 +237,7 @@ class LLMChartToJsonConverter:
     def _prepare_image_data(self, image_path: str) -> tuple[str, str]:
         """准备图像数据(编码和MIME类型)
 
-        用于避免重复编码同一张图片。
+        用于避免重复编码同一张图片.
 
         Args:
             image_path: 图像文件路径
@@ -258,7 +258,7 @@ class LLMChartToJsonConverter:
         Returns:
             系统提示词字符串
         """
-        return """你是一个专业的图表分析助手。请分析这张图片中的图表,并将其转换为结构化的JSON格式。
+        return """你是一个专业的图表分析助手.请分析这张图片中的图表,并将其转换为结构化的JSON格式.
 
 **你的主要任务**:
 1. 判断图像中是否包含图表,重点关注饼图 (pie_chart) 和柱状图 (bar_chart)
@@ -270,8 +270,8 @@ class LLMChartToJsonConverter:
 - 请直接返回有效的JSON格式
 - 如果只有一个图表:使用单个chart_data数组
 - 如果有多个图表:使用chart_data数组,每个元素代表一个图表的数据
-- 对于饼图:每个扇区包含{'label': '扇区名称', 'value': 数值, 'unit': '单位(如%、GW等)'}
-- 对于柱状图:每个柱子包含{'category': '类别名称', 'value': 数值, 'unit': '单位(如%、GW等)'}
+- 对于饼图:每个扇区包含{'label': '扇区名称', 'value': 数值, 'unit': '单位(如%,GW等)'}
+- 对于柱状图:每个柱子包含{'category': '类别名称', 'value': 数值, 'unit': '单位(如%,GW等)'}
 - 如果是百分比,请保留%符号在value或unit字段中
 - 如果不是图表或不是饼图/柱状图,请在JSON中明确标记
 
@@ -308,14 +308,14 @@ class LLMChartToJsonConverter:
   ]
 }
 
-请确保返回的是有效的JSON格式,数据尽量准确完整。如果有多個图表,请明确标识。"""
+请确保返回的是有效的JSON格式,数据尽量准确完整.如果有多個图表,请明确标识."""
 
     def _invoke_model(
         self, messages: list[dict[str, Any]], response_model: type | None = None
     ) -> str:
         """实际调用模型(不带重试)
 
-        执行实际的模型调用,返回字符串响应。
+        执行实际的模型调用,返回字符串响应.
 
         Args:
             messages: 消息列表
@@ -349,7 +349,7 @@ class LLMChartToJsonConverter:
     ) -> str:
         """调用GLM-4.6V模型(带重试机制)
 
-        包装模型调用,提供重试逻辑和错误处理。
+        包装模型调用,提供重试逻辑和错误处理.
 
         Args:
             messages: 消息列表
@@ -406,7 +406,7 @@ class LLMChartToJsonConverter:
                     "content": [
                         {
                             "type": "text",
-                            "text": "请分析这张图片,判断它是否为图表,并提供详细的分析结果。请以JSON格式输出。",
+                            "text": "请分析这张图片,判断它是否为图表,并提供详细的分析结果.请以JSON格式输出.",
                         },
                         {
                             "type": "image_url",
@@ -696,7 +696,7 @@ class LLMChartToJsonConverter:
     def clear_processing_status(self) -> None:
         """清空所有图片处理状态记录
 
-        用于重新处理所有图片或释放内存。
+        用于重新处理所有图片或释放内存.
         """
         count = len(self._image_processing_status)
         self._image_processing_status.clear()
@@ -707,9 +707,9 @@ class LLMChartToJsonConverter:
     ) -> dict[str, Any] | None:
         """处理单个图像文件
 
-        处理图片并记录状态,用于追踪哪些图片已经处理过。
-        每次调用都会重新处理图片,不会自动返回缓存结果。
-        可以通过get_processing_status()查看处理历史。
+        处理图片并记录状态,用于追踪哪些图片已经处理过.
+        每次调用都会重新处理图片,不会自动返回缓存结果.
+        可以通过get_processing_status()查看处理历史.
 
         Args:
             image_path: 图像文件路径
@@ -780,7 +780,7 @@ class LLMChartToJsonConverter:
             # 判断是否为饼状图或柱状图
             chart_type = analysis_result.chart_type or "unknown"
 
-            # 如果LLM没有显式给出chart_type,但描述中明确提到“饼图”,按饼图处理
+            # 如果LLM没有显式给出chart_type,但描述中明确提到"饼图",按饼图处理
             if chart_type in (None, "", "unknown"):
                 desc = (analysis_result.description or "").lower()
                 if (
@@ -1204,7 +1204,7 @@ class LLMChartToJsonConverter:
     ) -> dict[str, Any]:
         """处理已清洗文档目录下的所有图表
 
-        遍历data/cleaned/documents/目录下的所有文档,处理其中的图表并生成JSON文件。
+        遍历data/cleaned/documents/目录下的所有文档,处理其中的图表并生成JSON文件.
 
         Args:
             cleaned_docs_base_dir: 已清洗文档的基础目录路径

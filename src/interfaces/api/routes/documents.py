@@ -1,8 +1,8 @@
 """
 文档上传和预处理API路由
 
-实现文档上传、预处理、查询等API接口。
-使用T035定义的Schema,调用T033文档服务。
+实现文档上传,预处理,查询等API接口.
+使用T035定义的Schema,调用T033文档服务.
 
 生成命令: /speckit.implement T034
 生成时间: 2025-12-17
@@ -10,6 +10,7 @@
 """
 
 import contextlib
+import hashlib
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -72,7 +73,7 @@ def get_document_service() -> DocumentService:
         500: {"model": ErrorResponse, "description": "服务器内部错误"},
     },
     summary="上传文档",
-    description="上传文档文件并创建文档记录,支持PDF、DOCX等格式",
+    description="上传文档文件并创建文档记录,支持PDF,DOCX等格式",
 )
 async def upload_document(
     file: UploadFile = File(..., description="要上传的文档文件"),
@@ -144,16 +145,21 @@ async def upload_document(
         upload_dir = config.document.upload_temp_dir
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        # 生成唯一文件名
+        # 生成稳定文件名(基于内容hash)，避免同一文件在 e2e/pytest 重跑时重复触发预处理和LLM调用
         file_extension = Path(file.filename).suffix if file.filename else ""
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = upload_dir / unique_filename
+        content = await file.read()
+        file_hash = hashlib.sha256(content).hexdigest()
+        stable_filename = f"{file_hash[:32]}{file_extension}"
+        file_path = upload_dir / stable_filename
 
         # 保存文件
         try:
-            with file_path.open("wb") as f:
-                content = await file.read()
-                f.write(content)
+            if file_path.exists() and file_path.is_file() and file_path.stat().st_size == len(content):
+                # 复用已存在文件，避免改变mtime导致MinerU缓存失效
+                logger.info("检测到相同内容文件已存在，复用: %s", file_path)
+            else:
+                with file_path.open("wb") as f:
+                    f.write(content)
         except Exception as e:
             logger.error("保存上传文件失败: %s", e)
             raise HTTPException(
@@ -161,7 +167,7 @@ async def upload_document(
                 detail="保存文件失败",
             ) from e
 
-        logger.info("文件上传成功: %s -> %s", file.filename, file_path)
+        logger.info("文件上传成功: %s -> %s (sha256=%s)", file.filename, file_path, file_hash[:12])
 
         # 处理文档
         try:
@@ -194,8 +200,9 @@ async def upload_document(
                     id=domain_doc.id,
                     filename=domain_doc.filename,
                     file_path=domain_doc.file_path,
-                    status=DocumentStatus(domain_doc.status),
-                    format=DocumentFormat(domain_doc.format),
+                    # 兼容领域层枚举大小写差异：交给 Schema validator 统一归一化
+                    status=domain_doc.status,
+                    format=domain_doc.format,
                     uploaded_by=domain_doc.uploaded_by,
                     metadata={
                         "file_size": domain_doc.file_size,
@@ -240,8 +247,8 @@ async def upload_document(
                 id=domain_doc.id,
                 filename=domain_doc.filename,
                 file_path=domain_doc.file_path,
-                status=DocumentStatus(domain_doc.status),
-                format=DocumentFormat(domain_doc.format),
+                status=domain_doc.status,
+                format=domain_doc.format,
                 uploaded_by=domain_doc.uploaded_by,
                 metadata={
                     "file_size": domain_doc.file_size,
@@ -289,7 +296,7 @@ async def upload_document(
         500: {"model": ErrorResponse, "description": "服务器内部错误"},
     },
     summary="处理文档",
-    description="对已上传的文档进行预处理,包括格式识别、内容清洗等",
+    description="对已上传的文档进行预处理,包括格式识别,内容清洗等",
 )
 async def process_document(
     request: DocumentProcessRequest,
@@ -317,6 +324,17 @@ async def process_document(
                 detail="文档不存在",
             )
 
+        def _to_format_str(v: object) -> str:
+            """兼容 Enum/字符串，统一返回小写格式字符串（供服务层使用）"""
+            try:
+                from enum import Enum
+
+                if isinstance(v, Enum):
+                    return str(v.value).lower()
+            except Exception:
+                pass
+            return str(v).lower()
+
         # 处理文档
         try:
             if request.use_async:
@@ -324,7 +342,7 @@ async def process_document(
                 result = await document_service.upload_and_process_async(
                     file_path=document.file_path,
                     uploaded_by=document.uploaded_by,
-                    format=document.format.value,
+                    format=_to_format_str(document.format),
                     enable_chart_conversion=request.enable_chart_conversion,
                 )
 
@@ -339,7 +357,7 @@ async def process_document(
                 documents = document_service.upload_and_process(
                     file_path=document.file_path,
                     uploaded_by=document.uploaded_by,
-                    format=document.format.value,
+                    format=_to_format_str(document.format),
                 )
 
                 return DocumentProcessResponse(
@@ -569,8 +587,8 @@ async def list_documents(
                     id=doc.id,
                     filename=doc.filename,
                     file_path=doc.file_path,
-                    status=DocumentStatus(doc.status),
-                    format=DocumentFormat(doc.format),
+                    status=doc.status,
+                    format=doc.format,
                     uploaded_by=doc.uploaded_by,
                     metadata=metadata,
                 )
@@ -632,14 +650,27 @@ async def get_document(
             )
 
         # 返回文档详情
+        def _to_lower_str(v: object) -> str:
+            """兼容 Enum/字符串，统一返回小写字符串。"""
+            try:
+                # Enum
+                from enum import Enum
+
+                if isinstance(v, Enum):
+                    return str(v.value).lower()
+            except Exception:
+                pass
+            return str(v).lower()
+
         return {
             "id": str(document.id),
             "filename": document.filename,
             "file_path": document.file_path,
             "file_size": document.file_size,
             "mime_type": document.mime_type,
-            "format": document.format.value,
-            "status": document.status.value,
+            # 领域层可能因为 use_enum_values=True 返回字符串（如 'PDF'/'PARSING'）
+            "format": _to_lower_str(document.format),
+            "status": _to_lower_str(document.status),
             "uploaded_by": str(document.uploaded_by),
             "uploaded_at": document.uploaded_at.isoformat(),
             "metadata": document.metadata,

@@ -5,7 +5,7 @@
 """
 存储相关异常类模块
 
-提供各种存储系统的异常处理, 包括SQLite、Chroma、NetworkX等。
+提供各种存储系统的异常处理, 包括SQLite,Chroma,NetworkX等.
 """
 
 from typing import Any
@@ -16,7 +16,7 @@ from .base_exceptions import BaseApplicationError
 class StorageError(BaseApplicationError):
     """存储基础异常类
 
-    所有存储相关异常的基类。
+    所有存储相关异常的基类.
     """
 
     def __init__(
@@ -30,7 +30,7 @@ class StorageError(BaseApplicationError):
 
         Args:
             message: 错误消息
-            storage_type: 存储类型(如SQLite、Chroma、NetworkX)
+            storage_type: 存储类型(如SQLite,Chroma,NetworkX)
             connection_string: 连接字符串(脱敏处理)
             **kwargs: 传递给基类的其他参数
         """
@@ -63,7 +63,7 @@ class StorageError(BaseApplicationError):
 class CustomConnectionError(StorageError):
     """连接错误异常
 
-    当无法连接到存储系统时抛出。
+    当无法连接到存储系统时抛出.
     """
 
     def __init__(
@@ -95,7 +95,7 @@ class CustomConnectionError(StorageError):
 class QueryError(StorageError):
     """查询错误异常
 
-    当存储查询执行失败时抛出。
+    当存储查询执行失败时抛出.
     """
 
     def __init__(
@@ -176,7 +176,7 @@ class QueryError(StorageError):
 class TransactionError(StorageError):
     """事务错误异常
 
-    当事务操作失败时抛出。
+    当事务操作失败时抛出.
     """
 
     def __init__(
@@ -204,7 +204,7 @@ class TransactionError(StorageError):
 class DataIntegrityError(StorageError):
     """数据完整性错误异常
 
-    当数据完整性约束被违反时抛出。
+    当数据完整性约束被违反时抛出.
     """
 
     def __init__(
@@ -236,7 +236,7 @@ class DataIntegrityError(StorageError):
 class SQLiteError(StorageError):
     """SQLite存储错误异常
 
-    当SQLite操作失败时抛出。
+    当SQLite操作失败时抛出.
     """
 
     def __init__(
@@ -264,7 +264,7 @@ class SQLiteError(StorageError):
 class ChromaError(StorageError):
     """Chroma向量存储错误异常
 
-    当Chroma向量存储操作失败时抛出。
+    当Chroma向量存储操作失败时抛出.
     """
 
     def __init__(
@@ -296,7 +296,7 @@ class ChromaError(StorageError):
 class NetworkXError(StorageError):
     """NetworkX图存储错误异常
 
-    当NetworkX图操作失败时抛出。
+    当NetworkX图操作失败时抛出.
     """
 
     def __init__(
@@ -328,7 +328,7 @@ class NetworkXError(StorageError):
 class MigrationError(StorageError):
     """数据迁移错误异常
 
-    当数据迁移操作失败时抛出。
+    当数据迁移操作失败时抛出.
     """
 
     def __init__(
@@ -360,7 +360,7 @@ class MigrationError(StorageError):
 class BackupError(StorageError):
     """备份错误异常
 
-    当备份操作失败时抛出。
+    当备份操作失败时抛出.
     """
 
     def __init__(
@@ -388,7 +388,7 @@ class BackupError(StorageError):
 class CustomIndexError(StorageError):
     """索引错误异常
 
-    当索引操作失败时抛出。
+    当索引操作失败时抛出.
     """
 
     def __init__(
@@ -420,7 +420,7 @@ class CustomIndexError(StorageError):
 class CacheError(StorageError):
     """缓存错误异常
 
-    当缓存操作失败时抛出。
+    当缓存操作失败时抛出.
     """
 
     def __init__(

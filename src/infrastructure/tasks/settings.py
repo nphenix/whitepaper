@@ -94,7 +94,7 @@ class LoggingSettings(BaseModel):
 class TaskSettings(BaseModel):
     """任务队列配置
 
-    整合所有任务队列相关的配置项。
+    整合所有任务队列相关的配置项.
     """
 
     # Redis 配置

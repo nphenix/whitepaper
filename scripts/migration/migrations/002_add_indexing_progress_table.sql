@@ -5,7 +5,7 @@
 
 -- @up
 -- 创建索引构建进度跟踪表
-CREATE TABLE indexing_progress (
+CREATE TABLE IF NOT EXISTS indexing_progress (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,
     knowledge_base_id TEXT NOT NULL,
@@ -47,14 +47,14 @@ CREATE TABLE indexing_progress (
 );
 
 -- 创建索引
-CREATE INDEX idx_indexing_progress_task_id ON indexing_progress(task_id);
-CREATE INDEX idx_indexing_progress_knowledge_base_id ON indexing_progress(knowledge_base_id);
-CREATE INDEX idx_indexing_progress_status ON indexing_progress(status);
-CREATE INDEX idx_indexing_progress_task_type ON indexing_progress(task_type);
-CREATE INDEX idx_indexing_progress_created_at ON indexing_progress(created_at);
+CREATE INDEX IF NOT EXISTS idx_indexing_progress_task_id ON indexing_progress(task_id);
+CREATE INDEX IF NOT EXISTS idx_indexing_progress_knowledge_base_id ON indexing_progress(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_indexing_progress_status ON indexing_progress(status);
+CREATE INDEX IF NOT EXISTS idx_indexing_progress_task_type ON indexing_progress(task_type);
+CREATE INDEX IF NOT EXISTS idx_indexing_progress_created_at ON indexing_progress(created_at);
 
 -- 创建索引构建步骤表
-CREATE TABLE indexing_steps (
+CREATE TABLE IF NOT EXISTS indexing_steps (
     id TEXT PRIMARY KEY,
     progress_id TEXT NOT NULL,
     step_name TEXT NOT NULL,
@@ -80,9 +80,9 @@ CREATE TABLE indexing_steps (
 );
 
 -- 创建索引
-CREATE INDEX idx_indexing_steps_progress_id ON indexing_steps(progress_id);
-CREATE INDEX idx_indexing_steps_step_order ON indexing_steps(step_order);
-CREATE INDEX idx_indexing_steps_status ON indexing_steps(status);
+CREATE INDEX IF NOT EXISTS idx_indexing_steps_progress_id ON indexing_steps(progress_id);
+CREATE INDEX IF NOT EXISTS idx_indexing_steps_step_order ON indexing_steps(step_order);
+CREATE INDEX IF NOT EXISTS idx_indexing_steps_status ON indexing_steps(status);
 
 -- @down
 -- 删除索引

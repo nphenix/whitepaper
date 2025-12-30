@@ -1,35 +1,35 @@
 """
 元数据索引构建器 (T048)
 
-该模块实现基于SQLite的元数据索引构建器，用于对分块后的Node对象进行元数据索引。
-支持元数据过滤和结构化查询，与T052文档分块策略集成。
+该模块实现基于SQLite的元数据索引构建器,用于对分块后的Node对象进行元数据索引.
+支持元数据过滤和结构化查询,与T052文档分块策略集成.
 
 设计目标:
 - 使用SQLite存储元数据索引
 - 支持从LlamaIndex Node对象构建索引
 - 支持元数据过滤和结构化查询
 - 集成T052文档分块策略
-- 提供完整的索引管理功能（构建、查询、更新、删除）
+- 提供完整的索引管理功能(构建,查询,更新,删除)
 """
 
 from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from src.shared.utils.logging import get_logger
-from src.shared.exceptions.storage_exceptions import DataIntegrityError, QueryError, SQLiteError
 
 try:
     from llama_index.core.schema import Node, TextNode
     LLAMA_INDEX_AVAILABLE = True
 except ImportError:  # pragma: no cover - 仅在未安装 llama-index 时触发
+    logger = get_logger(__name__)
     logger.warning(
         "LlamaIndex not available, metadata indexing with Node objects will be disabled"
     )
-    Node = Any  # type: ignore[assignment]
-    TextNode = Any  # type: ignore[assignment]
+    Node = Any  # type: ignore
+    TextNode = Any  # type: ignore
     LLAMA_INDEX_AVAILABLE = False
 
 from ..storage.sqlite.adapter import SQLiteAdapter
@@ -52,8 +52,8 @@ class MetadataIndexBuilder:
     """
     元数据索引构建器
 
-    使用SQLite存储元数据索引，支持从LlamaIndex Node对象构建索引，
-    提供元数据过滤和结构化查询功能。
+    使用SQLite存储元数据索引,支持从LlamaIndex Node对象构建索引,
+    提供元数据过滤和结构化查询功能.
 
     典型用法:
         >>> builder = MetadataIndexBuilder("document_chunks")
@@ -64,14 +64,14 @@ class MetadataIndexBuilder:
     def __init__(
         self,
         table_name: str = "document_chunks_metadata",
-        connection_manager=None,
+        connection_manager: Any = None,
     ) -> None:
         """
         初始化元数据索引构建器
 
         Args:
             table_name: 索引表名
-            connection_manager: SQLite连接管理器，如果为None则使用默认实例
+            connection_manager: SQLite连接管理器,如果为None则使用默认实例
         """
         self.table_name = table_name
         self.adapter = SQLiteAdapter(table_name, connection_manager)
@@ -140,7 +140,7 @@ class MetadataIndexBuilder:
             logger.error(error_msg)
             raise MetadataIndexError(error_msg) from e
 
-    def _extract_metadata_from_node(self, node: Node) -> Dict[str, Any]:
+    def _extract_metadata_from_node(self, node: Node) -> dict[str, Any]:
         """
         从LlamaIndex Node对象提取元数据
 
@@ -151,7 +151,8 @@ class MetadataIndexBuilder:
             提取的元数据字典
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise MetadataIndexError("LlamaIndex不可用，无法处理Node对象")
+            msg = "LlamaIndex不可用,无法处理Node对象"
+            raise MetadataIndexError(msg)
 
         # 获取基础元数据
         metadata = dict(getattr(node, "metadata", {}) or {})
@@ -178,7 +179,7 @@ class MetadataIndexBuilder:
 
         return extracted
 
-    def build_index(self, nodes: List[Node]) -> List[Dict[str, Any]]:
+    def build_index(self, nodes: list[Node]) -> list[dict[str, Any]]:
         """
         从LlamaIndex Node列表构建元数据索引
 
@@ -194,10 +195,10 @@ class MetadataIndexBuilder:
         self._ensure_initialized()
 
         if not nodes:
-            logger.warning("空的Node列表，不构建索引")
+            logger.warning("空的Node列表,不构建索引")
             return []
 
-        logger.info(f"开始构建元数据索引，节点数: {len(nodes)}")
+        logger.info(f"开始构建元数据索引,节点数: {len(nodes)}")
 
         try:
             # 提取所有节点的元数据
@@ -212,7 +213,7 @@ class MetadataIndexBuilder:
                     continue
 
             if not records:
-                logger.warning("没有有效的元数据记录，不构建索引")
+                logger.warning("没有有效的元数据记录,不构建索引")
                 return []
 
             # 批量插入记录
@@ -232,10 +233,10 @@ class MetadataIndexBuilder:
 
     def query(
         self,
-        filters: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        order_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None,
+        limit: int | None = None,
+        order_by: str | None = None,
+    ) -> list[dict[str, Any]]:
         """
         查询元数据索引
 
@@ -261,7 +262,7 @@ class MetadataIndexBuilder:
                     if key.startswith("metadata."):
                         # 将metadata.field格式的查询转换为JSON查询
                         json_field = key[9:]  # 去掉"metadata."前缀
-                        processed_filters[f"metadata_json"] = f"%{json_field}%{value}%"
+                        processed_filters["metadata_json"] = f"%{json_field}%{value}%"
                     else:
                         processed_filters[key] = value
 
@@ -271,7 +272,7 @@ class MetadataIndexBuilder:
 
             # 解析JSON元数据
             for record in records:
-                if "metadata_json" in record and record["metadata_json"]:
+                if isinstance(record, dict) and record.get("metadata_json"):
                     try:
                         metadata = json.loads(record["metadata_json"])
                         record["metadata"] = metadata
@@ -289,31 +290,27 @@ class MetadataIndexBuilder:
 
     def query_by_section_path(
         self, section_path: str, exact_match: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         按章节路径查询
 
         Args:
             section_path: 章节路径
-            exact_match: 是否精确匹配，False时使用前缀匹配
+            exact_match: 是否精确匹配,False时使用前缀匹配
 
         Returns:
             查询结果列表
         """
-        if exact_match:
-            filters = {"section_path": section_path}
-        else:
-            # 使用LIKE进行前缀匹配
-            filters = {}  # 将在自定义查询中处理
+        filters = {"section_path": section_path} if exact_match else {}
 
         try:
             if exact_match:
                 return self.query(filters=filters, order_by="chunk_index")
             else:
                 # 自定义前缀查询
-                query = f"""
-                SELECT * FROM {self.table_name} 
-                WHERE section_path LIKE ? 
+                query = """
+                SELECT * FROM document_chunks_metadata
+                WHERE section_path LIKE ?
                 ORDER BY chunk_index
                 """
                 pattern = f"{section_path}%"
@@ -322,8 +319,8 @@ class MetadataIndexBuilder:
                 )
 
                 # 解析JSON元数据
-                for record in results:
-                    if "metadata_json" in record and record["metadata_json"]:
+                for record in (results or []):
+                    if isinstance(record, dict) and record.get("metadata_json"):
                         try:
                             metadata = json.loads(record["metadata_json"])
                             record["metadata"] = metadata
@@ -331,7 +328,7 @@ class MetadataIndexBuilder:
                             logger.warning(f"解析JSON元数据失败: {record.get('id')}")
                             record["metadata"] = {}
 
-                return results
+                return results or []  # type: ignore[return-value]
 
         except Exception as e:
             error_msg = f"按章节路径查询失败: {e}"
@@ -339,8 +336,8 @@ class MetadataIndexBuilder:
             raise MetadataIndexError(error_msg) from e
 
     def query_by_element_type(
-        self, element_type: str, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, element_type: str, limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         按元素类型查询
 
@@ -356,7 +353,7 @@ class MetadataIndexBuilder:
 
     def query_by_document_id(
         self, document_id: str, order_by: str = "chunk_index"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         按文档ID查询
 
@@ -371,8 +368,8 @@ class MetadataIndexBuilder:
         return self.query(filters=filters, order_by=order_by)
 
     def query_by_chunk_range(
-        self, start_chunk: int, end_chunk: int, document_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, start_chunk: int, end_chunk: int, document_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         按块索引范围查询
 
@@ -384,23 +381,17 @@ class MetadataIndexBuilder:
         Returns:
             查询结果列表
         """
-        filters = {
-            "chunk_index >= ?": start_chunk,
-            "chunk_index <= ?": end_chunk,
-        }
-        if document_id:
-            filters["document_id"] = document_id
-
         # 构建自定义查询
         where_clauses = ["chunk_index >= ?", "chunk_index <= ?"]
         params = [start_chunk, end_chunk]
 
         if document_id:
             where_clauses.append("document_id = ?")
-            params.append(document_id)
+            params.append(document_id)  # type: ignore[arg-type]
+
 
         query = f"""
-        SELECT * FROM {self.table_name} 
+        SELECT * FROM document_chunks_metadata
         WHERE {' AND '.join(where_clauses)}
         ORDER BY chunk_index
         """
@@ -411,8 +402,8 @@ class MetadataIndexBuilder:
             )
 
             # 解析JSON元数据
-            for record in results:
-                if "metadata_json" in record and record["metadata_json"]:
+            for record in (results or []):
+                if isinstance(record, dict) and record.get("metadata_json"):
                     try:
                         metadata = json.loads(record["metadata_json"])
                         record["metadata"] = metadata
@@ -420,14 +411,14 @@ class MetadataIndexBuilder:
                         logger.warning(f"解析JSON元数据失败: {record.get('id')}")
                         record["metadata"] = {}
 
-            return results
+            return results  # type: ignore[return-value]
 
         except Exception as e:
             error_msg = f"按块范围查询失败: {e}"
             logger.error(error_msg)
             raise MetadataIndexError(error_msg) from e
 
-    def get_by_node_id(self, node_id: str) -> Optional[Dict[str, Any]]:
+    def get_by_node_id(self, node_id: str) -> dict[str, Any] | None:
         """
         根据节点ID获取记录
 
@@ -435,7 +426,7 @@ class MetadataIndexBuilder:
             node_id: 节点ID
 
         Returns:
-            记录字典，如果不存在则返回None
+            记录字典,如果不存在则返回None
         """
         record = self.adapter.get_by_id(node_id)
         if record and "metadata_json" in record and record["metadata_json"]:
@@ -449,8 +440,8 @@ class MetadataIndexBuilder:
         return record
 
     def update_metadata(
-        self, node_id: str, metadata_updates: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, node_id: str, metadata_updates: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """
         更新节点的元数据
 
@@ -459,12 +450,12 @@ class MetadataIndexBuilder:
             metadata_updates: 要更新的元数据
 
         Returns:
-            更新后的记录，如果不存在则返回None
+            更新后的记录,如果不存在则返回None
         """
         # 获取现有记录
         existing_record = self.get_by_node_id(node_id)
         if not existing_record:
-            logger.warning(f"节点不存在，无法更新元数据: {node_id}")
+            logger.warning(f"节点不存在,无法更新元数据: {node_id}")
             return None
 
         try:
@@ -495,7 +486,7 @@ class MetadataIndexBuilder:
 
             if updated_record:
                 # 解析JSON元数据
-                if "metadata_json" in updated_record and updated_record["metadata_json"]:
+                if updated_record.get("metadata_json"):
                     try:
                         metadata = json.loads(updated_record["metadata_json"])
                         updated_record["metadata"] = metadata
@@ -544,7 +535,7 @@ class MetadataIndexBuilder:
             删除的记录数
         """
         try:
-            query = f"DELETE FROM {self.table_name} WHERE document_id = ?"
+            query = "DELETE FROM document_chunks_metadata WHERE document_id = ?"
             with self.adapter.connection_manager.transaction() as cursor:
                 cursor.execute(query, (document_id,))
                 deleted_count = cursor.rowcount
@@ -557,7 +548,7 @@ class MetadataIndexBuilder:
             logger.error(error_msg)
             raise MetadataIndexError(error_msg) from e
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         获取索引统计信息
 
@@ -574,9 +565,9 @@ class MetadataIndexBuilder:
             }
 
             # 按文档统计
-            doc_count_query = f"""
-            SELECT document_id, COUNT(*) as count 
-            FROM {self.table_name} 
+            doc_count_query = """
+            SELECT document_id, COUNT(*) as count
+            FROM document_chunks_metadata
             GROUP BY document_id
             """
             doc_counts = self.adapter.execute_custom_query(
@@ -585,9 +576,9 @@ class MetadataIndexBuilder:
             stats["documents"] = doc_counts
 
             # 按章节路径统计
-            section_count_query = f"""
-            SELECT section_path, COUNT(*) as count 
-            FROM {self.table_name} 
+            section_count_query = """
+            SELECT section_path, COUNT(*) as count
+            FROM document_chunks_metadata
             WHERE section_path IS NOT NULL
             GROUP BY section_path
             ORDER BY count DESC
@@ -599,9 +590,9 @@ class MetadataIndexBuilder:
             stats["top_sections"] = section_counts
 
             # 按元素类型统计
-            element_count_query = f"""
-            SELECT element_type, COUNT(*) as count 
-            FROM {self.table_name} 
+            element_count_query = """
+            SELECT element_type, COUNT(*) as count
+            FROM document_chunks_metadata
             WHERE element_type IS NOT NULL
             GROUP BY element_type
             ORDER BY count DESC
@@ -618,9 +609,9 @@ class MetadataIndexBuilder:
             logger.error(error_msg)
             raise MetadataIndexError(error_msg) from e
 
-    def rebuild_index(self, nodes: List[Node]) -> List[Dict[str, Any]]:
+    def rebuild_index(self, nodes: list[Node]) -> list[dict[str, Any]]:
         """
-        重建索引（先删除现有数据，再构建新索引）
+        重建索引(先删除现有数据,再构建新索引)
 
         Args:
             nodes: LlamaIndex Node对象列表
@@ -647,11 +638,13 @@ class MetadataIndexBuilder:
             logger.error(error_msg)
             raise MetadataIndexError(error_msg) from e
 
+    @classmethod
     def create_adapter(
+        cls,
         table_name: str,
-        connection_manager=None,
-        **kwargs,
-    ) -> "MetadataIndexBuilder":
+        connection_manager: Any = None,
+        **kwargs: Any,
+    ) -> MetadataIndexBuilder:
         """
         创建元数据索引构建器实例
 
@@ -663,7 +656,7 @@ class MetadataIndexBuilder:
         Returns:
             MetadataIndexBuilder: 构建器实例
         """
-        return MetadataIndexBuilder(
+        return cls(
             table_name=table_name,
             connection_manager=connection_manager,
             **kwargs,

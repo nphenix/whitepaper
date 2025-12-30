@@ -5,8 +5,8 @@
 
 Agent日志记录中间件模块
 
-提供统一的Agent日志记录机制,基于LangChain 1.0的中间件系统。
-记录Agent执行的生命周期事件、输入输出、性能指标等。
+提供统一的Agent日志记录机制,基于LangChain 1.0的中间件系统.
+记录Agent执行的生命周期事件,输入输出,性能指标等.
 """
 
 import time
@@ -30,7 +30,7 @@ class AgentLoggingMiddleware(AgentMiddleware):
 
     基于LangChain 1.0的AgentMiddleware实现,提供统一的日志记录机制:
     1. 记录Agent执行的生命周期事件
-    2. 记录输入参数、中间状态、输出结果
+    2. 记录输入参数,中间状态,输出结果
     3. 记录执行时间和性能指标
     4. 支持结构化日志输出
 
@@ -380,7 +380,7 @@ class AgentLoggingMiddleware(AgentMiddleware):
     ) -> dict[str, Any] | None:
         """在工具调用前执行,记录工具调用开始事件(流式事件)
 
-        注意:此方法可能不被所有LangChain版本支持,如果不可用则通过工具调用消息追踪。
+        注意:此方法可能不被所有LangChain版本支持,如果不可用则通过工具调用消息追踪.
 
         Args:
             state: Agent状态
@@ -432,7 +432,7 @@ class AgentLoggingMiddleware(AgentMiddleware):
     ) -> dict[str, Any] | None:
         """在工具调用后执行,记录工具调用结束事件(流式事件)
 
-        注意:此方法可能不被所有LangChain版本支持,如果不可用则通过工具响应消息追踪。
+        注意:此方法可能不被所有LangChain版本支持,如果不可用则通过工具响应消息追踪.
 
         Args:
             state: Agent状态
@@ -479,8 +479,8 @@ class AgentLoggingMiddleware(AgentMiddleware):
     ) -> None:
         """追踪token使用量
 
-        注意:此方法需要从模型响应中提取token使用量信息。
-        由于LangChain 1.0的模型响应可能包含token使用量,可以在after_model中提取。
+        注意:此方法需要从模型响应中提取token使用量信息.
+        由于LangChain 1.0的模型响应可能包含token使用量,可以在after_model中提取.
 
         Args:
             execution_id: 执行ID

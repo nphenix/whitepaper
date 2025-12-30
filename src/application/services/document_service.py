@@ -1,9 +1,9 @@
 """
 文档服务
 
-封装文档预处理Agent和异步任务,提供业务层接口。
-处理文档上传、格式识别、预处理等业务流程。
-输入输出使用LangChain Document对象格式。
+封装文档预处理Agent和异步任务,提供业务层接口.
+处理文档上传,格式识别,预处理等业务流程.
+输入输出使用LangChain Document对象格式.
 
 基于LangChain 1.0最佳实践实现:
 - 封装Agent为服务层接口
@@ -49,9 +49,9 @@ class DocumentService:
     """
     文档服务
 
-    封装文档预处理Agent(T032)和异步任务(T037),提供业务层接口。
-    处理文档上传、格式识别、预处理等业务流程。
-    输入输出使用LangChain Document对象格式。
+    封装文档预处理Agent(T032)和异步任务(T037),提供业务层接口.
+    处理文档上传,格式识别,预处理等业务流程.
+    输入输出使用LangChain Document对象格式.
 
     功能特性:
     - 文档上传和元数据管理
@@ -169,8 +169,8 @@ class DocumentService:
         """
         确保用户存在(如果不存在则创建测试用户)
 
-        这是一个辅助方法,用于处理外键约束。
-        在测试环境中,如果用户不存在,会创建一个默认的测试用户。
+        这是一个辅助方法,用于处理外键约束.
+        在测试环境中,如果用户不存在,会创建一个默认的测试用户.
 
         Args:
             user_id: 用户ID
@@ -270,7 +270,7 @@ class DocumentService:
             supported_formats = {"pdf", "docx", "html"}
             if format_info.format.lower() not in supported_formats:
                 msg = (
-                    f"不支持的文档格式: {format_info.format}。"
+                    f"不支持的文档格式: {format_info.format}."
                     f"支持的格式: {', '.join(supported_formats)}"
                 )
                 raise ProcessingError(msg)
@@ -358,8 +358,8 @@ class DocumentService:
 
         Note:
             由于领域模型Document只存储元数据,不存储内容,
-            这个方法主要用于文档查询时构建LangChain Document对象。
-            实际的内容需要从文件系统或其他存储中读取。
+            这个方法主要用于文档查询时构建LangChain Document对象.
+            实际的内容需要从文件系统或其他存储中读取.
         """
         # 从领域模型的元数据中提取LangChain元数据
         langchain_metadata = domain_doc.metadata.get("langchain_metadata", {})
@@ -423,7 +423,7 @@ class DocumentService:
             doc_format = format_mapping.get(format_info.format.lower())
             if doc_format is None:
                 msg = (
-                    f"不支持的文档格式: {format_info.format}。"
+                    f"不支持的文档格式: {format_info.format}."
                     f"支持的格式: {', '.join(format_mapping.keys())}"
                 )
                 raise ProcessingError(msg)
@@ -577,7 +577,7 @@ class DocumentService:
                 supported_formats = {"pdf", "docx", "html"}
                 if doc_format.lower() not in supported_formats:
                     msg = (
-                        f"不支持的指定格式: {doc_format}。"
+                        f"不支持的指定格式: {doc_format}."
                         f"支持的格式: {', '.join(supported_formats)}"
                     )
                     raise ProcessingError(msg)
@@ -585,8 +585,8 @@ class DocumentService:
                 # 验证指定格式与检测格式是否匹配
                 if doc_format.lower() != format_info.format.lower():
                     msg = (
-                        f"指定格式 '{doc_format}' 与检测格式 '{format_info.format}' 不匹配。"
-                        f"请确认文件格式或移除doc_format参数以使用自动检测。"
+                        f"指定格式 '{doc_format}' 与检测格式 '{format_info.format}' 不匹配."
+                        f"请确认文件格式或移除doc_format参数以使用自动检测."
                     )
                     raise ProcessingError(msg)
 
@@ -680,7 +680,7 @@ class DocumentService:
         """
         上传并处理文档(异步)
 
-        使用T037异步任务处理文档,适用于大文件或需要异步处理的场景。
+        使用T037异步任务处理文档,适用于大文件或需要异步处理的场景.
 
         Args:
             file_path: 文件路径
@@ -704,7 +704,7 @@ class DocumentService:
                 supported_formats = {"pdf", "docx", "html"}
                 if doc_format.lower() not in supported_formats:
                     msg = (
-                        f"不支持的指定格式: {doc_format}。"
+                        f"不支持的指定格式: {doc_format}."
                         f"支持的格式: {', '.join(supported_formats)}"
                     )
                     raise ProcessingError(msg)
@@ -712,8 +712,8 @@ class DocumentService:
                 # 验证指定格式与检测格式是否匹配
                 if doc_format.lower() != format_info.format.lower():
                     msg = (
-                        f"指定格式 '{doc_format}' 与检测格式 '{format_info.format}' 不匹配。"
-                        f"请确认文件格式或移除doc_format参数以使用自动检测。"
+                        f"指定格式 '{doc_format}' 与检测格式 '{format_info.format}' 不匹配."
+                        f"请确认文件格式或移除doc_format参数以使用自动检测."
                     )
                     raise ProcessingError(msg)
 
@@ -806,7 +806,7 @@ class DocumentService:
         """
         批量上传并处理文档(异步)
 
-        使用T037批量异步任务处理多个文档。
+        使用T037批量异步任务处理多个文档.
 
         Args:
             file_paths: 文件路径列表

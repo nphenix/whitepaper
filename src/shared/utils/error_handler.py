@@ -5,8 +5,8 @@
 
 错误处理中间件模块
 
-提供统一的Agent错误处理机制,基于LangChain 1.0的中间件系统。
-支持错误捕获、分类、恢复和上报功能。
+提供统一的Agent错误处理机制,基于LangChain 1.0的中间件系统.
+支持错误捕获,分类,恢复和上报功能.
 """
 
 import time
@@ -284,17 +284,17 @@ class ErrorHandlingMiddleware(AgentMiddleware):
 
         # 根据错误类型提供不同的错误消息
         error_message_map = {
-            "timeout": "调用超时,请稍后重试。",
-            "rate_limit": "调用达到速率限制,请稍后重试。",
-            "authentication": "认证失败,请检查配置。",
-            "model_unavailable": "依赖的模型不可用,请稍后重试。",
+            "timeout": "调用超时,请稍后重试.",
+            "rate_limit": "调用达到速率限制,请稍后重试.",
+            "authentication": "认证失败,请检查配置.",
+            "model_unavailable": "依赖的模型不可用,请稍后重试.",
         }
         if error_type in error_message_map:
             return f"工具 {tool_name} {error_message_map[error_type]}"
-        return f"工具 {tool_name} 调用失败: {error_message}。请检查输入参数或稍后重试。"
+        return f"工具 {tool_name} 调用失败: {error_message}.请检查输入参数或稍后重试."
 
     def _handle_error(self, error: AgentExecutionError, state: AgentState) -> None:
-        """处理错误(上报、记录等)
+        """处理错误(上报,记录等)
 
         Args:
             error: 错误异常

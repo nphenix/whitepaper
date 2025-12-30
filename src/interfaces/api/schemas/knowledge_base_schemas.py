@@ -1,8 +1,8 @@
 """
 知识库相关API Schema
 
-定义知识库创建、更新、查询等API的请求和响应Schema。
-使用Pydantic进行数据验证。
+定义知识库创建,更新,查询等API的请求和响应Schema.
+使用Pydantic进行数据验证.
 
 生成命令: /speckit.implement T055
 生成时间: 2025-12-21
@@ -12,7 +12,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -67,16 +67,16 @@ class CreateKnowledgeBaseRequest(BaseModel):
     """创建知识库请求"""
 
     name: str = Field(..., min_length=1, max_length=100, description="知识库名称")
-    directories: List[str] = Field(
+    directories: list[str] = Field(
         ..., min_items=1, max_items=50, description="预处理结果目录列表"
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, max_length=500, description="知识库描述"
     )
-    vector_collection_name: Optional[str] = Field(
+    vector_collection_name: str | None = Field(
         None, max_length=100, description="向量索引集合名称"
     )
-    bm25_index_path: Optional[str] = Field(
+    bm25_index_path: str | None = Field(
         None, max_length=255, description="BM25索引文件路径"
     )
     enable_vector: bool = Field(default=True, description="是否启用向量检索")
@@ -91,33 +91,35 @@ class CreateKnowledgeBaseRequest(BaseModel):
 
     @field_validator("directories")
     @classmethod
-    def validate_directories(cls, v: List[str]) -> List[str]:
+    def validate_directories(cls, v: list[str]) -> list[str]:
         """验证目录列表"""
         # 去重
         unique_dirs = list(set(v))
         if len(unique_dirs) != len(v):
-            raise ValueError("目录列表中存在重复项")
+            msg = "目录列表中存在重复项"
+            raise ValueError(msg)
         return unique_dirs
 
 
 class UpdateKnowledgeBaseRequest(BaseModel):
     """更新知识库请求"""
 
-    directories: Optional[List[str]] = Field(
+    directories: list[str] | None = Field(
         None, min_items=1, max_items=50, description="预处理结果目录列表"
     )
     show_progress: bool = Field(default=False, description="是否显示进度")
 
     @field_validator("directories")
     @classmethod
-    def validate_directories(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def validate_directories(cls, v: list[str] | None) -> list[str] | None:
         """验证目录列表"""
         if v is None:
             return v
         # 去重
         unique_dirs = list(set(v))
         if len(unique_dirs) != len(v):
-            raise ValueError("目录列表中存在重复项")
+            msg = "目录列表中存在重复项"
+            raise ValueError(msg)
         return unique_dirs
 
 
@@ -126,45 +128,47 @@ class QueryKnowledgeBaseRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=1000, description="查询文本")
     top_k: int = Field(default=10, ge=1, le=100, description="返回结果数量")
-    query_type: Optional[QueryType] = Field(None, description="查询类型")
-    filters: Optional[Dict[str, Any]] = Field(None, description="元数据过滤器")
+    query_type: QueryType | None = Field(None, description="查询类型")
+    filters: dict[str, Any] | None = Field(None, description="元数据过滤器")
     use_hybrid: bool = Field(default=True, description="是否使用混合检索")
     use_structured: bool = Field(default=False, description="是否使用结构化检索")
-    section_path: Optional[str] = Field(None, description="章节路径")
-    document_level: Optional[DocumentLevel] = Field(None, description="文档级别")
-    sort_by: Optional[str] = Field(None, description="排序字段")
+    section_path: str | None = Field(None, description="章节路径")
+    document_level: DocumentLevel | None = Field(None, description="文档级别")
+    sort_by: str | None = Field(None, description="排序字段")
     sort_order: SortOrder = Field(default=SortOrder.DESC, description="排序顺序")
 
     @field_validator("filters")
     @classmethod
-    def validate_filters(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def validate_filters(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         """验证过滤器"""
         if v is None:
             return v
         # 限制过滤器大小
         if len(str(v)) > 2000:  # 2KB限制
-            raise ValueError("过滤器过大，最多支持2KB")
+            msg = "过滤器过大,最多支持2KB"
+            raise ValueError(msg)
         return v
 
 
 class StructuredQueryRequest(BaseModel):
     """结构化查询请求"""
 
-    section_path: Optional[str] = Field(None, description="章节路径")
-    document_level: Optional[DocumentLevel] = Field(None, description="文档级别")
-    filters: Optional[Dict[str, Any]] = Field(None, description="元数据过滤器")
-    sort_by: Optional[str] = Field(None, description="排序字段")
+    section_path: str | None = Field(None, description="章节路径")
+    document_level: DocumentLevel | None = Field(None, description="文档级别")
+    filters: dict[str, Any] | None = Field(None, description="元数据过滤器")
+    sort_by: str | None = Field(None, description="排序字段")
     sort_order: SortOrder = Field(default=SortOrder.DESC, description="排序顺序")
 
     @field_validator("filters")
     @classmethod
-    def validate_filters(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def validate_filters(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         """验证过滤器"""
         if v is None:
             return v
         # 限制过滤器大小
         if len(str(v)) > 2000:  # 2KB限制
-            raise ValueError("过滤器过大，最多支持2KB")
+            msg = "过滤器过大,最多支持2KB"
+            raise ValueError(msg)
         return v
 
 
@@ -173,9 +177,9 @@ class StructuredQueryRequest(BaseModel):
 class IndexStatistics(BaseModel):
     """索引统计信息"""
 
-    vector: Optional[Dict[str, Any]] = Field(None, description="向量索引统计")
-    bm25: Optional[Dict[str, Any]] = Field(None, description="BM25索引统计")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="元数据索引统计")
+    vector: dict[str, Any] | None = Field(None, description="向量索引统计")
+    bm25: dict[str, Any] | None = Field(None, description="BM25索引统计")
+    metadata: dict[str, Any] | None = Field(None, description="元数据索引统计")
 
 
 class ChunkingConfig(BaseModel):
@@ -210,10 +214,10 @@ class KnowledgeBaseResponse(BaseModel):
 
     knowledge_base_id: str = Field(..., description="知识库ID")
     name: str = Field(..., description="知识库名称")
-    description: Optional[str] = Field(None, description="知识库描述")
+    description: str | None = Field(None, description="知识库描述")
     status: KnowledgeBaseStatus = Field(..., description="知识库状态")
     created_at: str = Field(..., description="创建时间")
-    updated_at: Optional[str] = Field(None, description="更新时间")
+    updated_at: str | None = Field(None, description="更新时间")
     config: KnowledgeBaseConfig = Field(..., description="知识库配置")
     indexes: IndexStatistics = Field(..., description="索引统计信息")
 
@@ -230,7 +234,7 @@ class CreateKnowledgeBaseResponse(BaseModel):
     """创建知识库响应"""
 
     knowledge_base: KnowledgeBaseResponse = Field(..., description="知识库信息")
-    statistics: Dict[str, Any] = Field(..., description="创建统计信息")
+    statistics: dict[str, Any] = Field(..., description="创建统计信息")
     message: str = Field(..., description="响应消息")
 
 
@@ -240,7 +244,7 @@ class UpdateKnowledgeBaseResponse(BaseModel):
     knowledge_base_id: str = Field(..., description="知识库ID")
     status: KnowledgeBaseStatus = Field(..., description="知识库状态")
     updated_at: str = Field(..., description="更新时间")
-    statistics: Dict[str, Any] = Field(..., description="更新统计信息")
+    statistics: dict[str, Any] = Field(..., description="更新统计信息")
     message: str = Field(..., description="响应消息")
 
 
@@ -259,7 +263,7 @@ class QueryResult(BaseModel):
     node_id: str = Field(..., description="节点ID")
     content: str = Field(..., description="内容")
     score: float = Field(..., description="相关性分数")
-    metadata: Dict[str, Any] = Field(..., description="元数据")
+    metadata: dict[str, Any] = Field(..., description="元数据")
 
 
 class QueryKnowledgeBaseResponse(BaseModel):
@@ -267,7 +271,7 @@ class QueryKnowledgeBaseResponse(BaseModel):
 
     knowledge_base_id: str = Field(..., description="知识库ID")
     query: str = Field(..., description="查询文本")
-    results: List[QueryResult] = Field(..., description="查询结果")
+    results: list[QueryResult] = Field(..., description="查询结果")
     total_results: int = Field(..., description="总结果数")
     query_time: float = Field(..., description="查询耗时(秒)")
     message: str = Field(..., description="响应消息")
@@ -278,8 +282,8 @@ class KnowledgeBaseStatusResponse(BaseModel):
 
     knowledge_base_id: str = Field(..., description="知识库ID")
     status: KnowledgeBaseStatus = Field(..., description="知识库状态")
-    processing_status: Dict[str, Any] = Field(..., description="处理状态")
-    progress_info: Dict[str, Any] = Field(..., description="进度信息")
+    processing_status: dict[str, Any] = Field(..., description="处理状态")
+    progress_info: dict[str, Any] = Field(..., description="进度信息")
     indexes: IndexStatistics = Field(..., description="索引统计信息")
     config: KnowledgeBaseConfig = Field(..., description="知识库配置")
 
@@ -290,9 +294,9 @@ class ErrorResponse(BaseModel):
     error: bool = Field(default=True, description="是否为错误")
     error_code: str = Field(..., description="错误代码")
     message: str = Field(..., description="错误消息")
-    details: Optional[Dict[str, Any]] = Field(None, description="错误详情")
+    details: dict[str, Any] | None = Field(None, description="错误详情")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="错误时间")
-    path: Optional[str] = Field(None, description="请求路径")
+    path: str | None = Field(None, description="请求路径")
 
 
 # === 便捷函数 ===
@@ -300,8 +304,8 @@ class ErrorResponse(BaseModel):
 def create_error_response(
     error_code: str,
     message: str,
-    details: Optional[Dict[str, Any]] = None,
-    path: Optional[str] = None,
+    details: dict[str, Any] | None = None,
+    path: str | None = None,
 ) -> ErrorResponse:
     """创建错误响应
 
@@ -324,8 +328,8 @@ def create_error_response(
 
 def create_success_response(
     message: str,
-    data: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """创建成功响应
 
     Args:

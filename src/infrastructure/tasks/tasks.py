@@ -111,7 +111,7 @@ class TaskContext(BaseModel):
 class BaseTask(ABC):
     """基础任务类
 
-    所有任务都应该继承此类,实现 execute 方法。
+    所有任务都应该继承此类,实现 execute 方法.
 
     Attributes:
         name: 任务名称

@@ -12,7 +12,7 @@ Agent编排器
 4. 错误隔离和恢复
 5. 可观测性
 
-完全基于LangChain 1.0的LCEL和Runnable接口,不依赖LangGraph。
+完全基于LangChain 1.0的LCEL和Runnable接口,不依赖LangGraph.
 """
 
 import asyncio
@@ -79,7 +79,7 @@ class AgentOrchestrator:
     4. 错误隔离
     5. 可观测性
 
-    完全基于LangChain 1.0的LCEL和Runnable接口实现,不依赖LangGraph。
+    完全基于LangChain 1.0的LCEL和Runnable接口实现,不依赖LangGraph.
     """
 
     def __init__(
@@ -477,7 +477,7 @@ class AgentOrchestrator:
         # 这里需要根据配置创建具体的Agent实例
         # 由于这是基础框架,我们抛出未实现异常
         # 子类应该重写此方法来创建具体的Agent
-        msg = "需要实现具体Agent的创建逻辑。Agent ID: %s", agent_id
+        msg = "需要实现具体Agent的创建逻辑.Agent ID: %s", agent_id
         raise NotImplementedError(msg)
 
     def _update_shared_state(

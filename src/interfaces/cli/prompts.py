@@ -5,10 +5,11 @@
 """
 提示词工程CLI命令
 
-提供提示词模板管理、测试、优化等功能的命令行接口。
+提供提示词模板管理,测试,优化等功能的命令行接口.
 """
 
 import builtins
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -28,7 +29,7 @@ console = Console()
 
 @prompts_app.command()
 def list(
-    category: str | None = typer.Option(None, "--category", "-c", help="提示词类别"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="提示词类别"),
 ) -> None:
     """列出提示词模板"""
     BaseCLI()
@@ -65,7 +66,7 @@ def list(
 def test(
     template_name: str = typer.Argument(..., help="提示词模板名称"),
     test_data: str = typer.Option(..., "--data", "-d", help="测试数据"),
-    output_file: str | None = typer.Option(None, "--output", "-o", help="输出文件路径"),
+    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="输出文件路径"),
 ) -> None:
     """测试提示词模板"""
     BaseCLI()
@@ -83,7 +84,7 @@ def test(
 @prompts_app.command()
 def optimize(
     template_name: str = typer.Argument(..., help="提示词模板名称"),
-    criteria: builtins.list[str] | None = typer.Option(
+    criteria: Optional[List[str]] = typer.Option(
         None, "--criteria", "-c", help="优化标准: accuracy, clarity, conciseness"
     ),
 ) -> None:

@@ -1,8 +1,8 @@
 """
 文档相关API Schema
 
-定义文档上传、预处理、查询等API的请求和响应Schema。
-使用Pydantic进行数据验证。
+定义文档上传,预处理,查询等API的请求和响应Schema.
+使用Pydantic进行数据验证.
 
 生成命令: /speckit.implement T035
 生成时间: 2025-12-17
@@ -163,6 +163,34 @@ class DocumentResponse(BaseModel):
     format: DocumentFormat = Field(..., description="文档格式")
     uploaded_by: uuid.UUID = Field(..., description="上传用户ID")
     metadata: DocumentMetadata = Field(..., description="文档元数据")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_status(cls, v: Any) -> Any:
+        """兼容领域层枚举/大小写差异
+
+        - 领域层 DocumentStatus 值可能为 'PARSING' 这类大写
+        - API Schema 期望 'parsing' 这类小写
+        """
+        if isinstance(v, Enum):
+            v = v.value
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("format", mode="before")
+    @classmethod
+    def _normalize_format(cls, v: Any) -> Any:
+        """兼容领域层枚举/大小写差异
+
+        - 领域层 DocumentFormat 值可能为 'PDF' 这类大写
+        - API Schema 期望 'pdf' 这类小写
+        """
+        if isinstance(v, Enum):
+            v = v.value
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
 
     class Config:
         """Pydantic配置"""

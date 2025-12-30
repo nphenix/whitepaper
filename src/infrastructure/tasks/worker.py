@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 class TaskRegistry:
     """任务注册表
 
-    管理所有可执行的任务,支持动态注册和发现。
+    管理所有可执行的任务,支持动态注册和发现.
     """
 
     def __init__(self) -> None:
@@ -43,7 +43,7 @@ class TaskRegistry:
         """注册任务
 
         Args:
-            task: 任务实例、函数或任务类
+            task: 任务实例,函数或任务类
             name: 任务名称,如果为 None 则使用默认名称
         """
         if isinstance(task, BaseTask):
@@ -215,7 +215,7 @@ def get_task_registry() -> TaskRegistry:
 class WorkerSettings(ArqWorker):
     """自定义 Worker 设置
 
-    继承自 arq.Worker,提供额外的配置和功能。
+    继承自 arq.Worker,提供额外的配置和功能.
     """
 
     def __init__(self, settings: TaskSettings):

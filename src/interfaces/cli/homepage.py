@@ -5,8 +5,10 @@
 """
 首页和智能检索CLI命令
 
-提供首页管理、智能检索等功能的命令行接口。
+提供首页管理,智能检索等功能的命令行接口.
 """
+
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -27,7 +29,7 @@ console = Console()
 @homepage_app.command()
 def search(
     query: str = typer.Argument(..., help="搜索查询"),
-    sources: list[str] | None = typer.Option(
+    sources: Optional[List[str]] = typer.Option(
         None, "--source", "-s", help="数据源: local, web, builtin"
     ),
     limit: int = typer.Option(10, "--limit", "-l", help="返回结果数量限制"),

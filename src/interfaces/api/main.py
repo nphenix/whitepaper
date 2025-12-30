@@ -1,10 +1,11 @@
 """FastAPI 应用主入口
 
-提供启动 FastAPI 应用的主函数和命令行接口。
+提供启动 FastAPI 应用的主函数和命令行接口.
 """
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 import typer
 import uvicorn
@@ -36,6 +37,35 @@ cli = typer.Typer(
     no_args_is_help=True,
 )
 
+@cli.command()
+def stop(
+    host: str = typer.Option(config.api.host, "--host", "-h", help="后端主机地址"),
+    port: int = typer.Option(config.api.port, "--port", "-p", help="后端端口"),
+    token: Optional[str] = typer.Option(
+        None,
+        "--token",
+        help="关闭令牌(可选，对应环境变量 WHITEPAPER_SHUTDOWN_TOKEN)",
+    ),
+):
+    """请求停止 API 服务器（开发/测试用）"""
+    import requests
+
+    url = f"http://{host}:{port}/__shutdown__"
+    headers = {}
+    if token:
+        headers["x-shutdown-token"] = token
+
+    try:
+        resp = requests.post(url, headers=headers, timeout=5)
+        if resp.status_code >= 400:
+            console.print(f"[bold red]关闭失败: HTTP {resp.status_code}[/bold red]")
+            console.print(resp.text)
+            raise typer.Exit(1)
+        console.print("[bold green]已发送关闭请求[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]发送关闭请求失败: {e!s}[/bold red]")
+        raise typer.Exit(1) from e
+
 
 @cli.command()
 def run(
@@ -54,7 +84,7 @@ def run(
         config.api.log_level, "--log-level", "-l", help="日志级别"
     ),
     access_log: bool = typer.Option(
-        config.api.access_log,
+        True,
         "--access-log/--no-access-log",
         help="是否启用访问日志",
     ),
@@ -75,6 +105,21 @@ def run(
         use_workers = max(workers, 2)
         use_access_log = True
         use_colors = False
+
+    # Windows 兼容性：
+    # - uvicorn 多 worker / reload 在 Windows 上经常触发 WinError 10022（socket.listen invalid argument）
+    # - e2e 测试与本地集成默认只需要单进程
+    if sys.platform.startswith("win"):
+        if use_reload:
+            logger.warning("Windows 环境下自动重载可能不稳定，已自动禁用 reload")
+            use_reload = False
+        if use_workers and use_workers > 1:
+            # 不再强制降级：在长任务场景(LLM/预处理/草稿生成)下，单 worker 会导致 /health、/draft 等接口长期无响应，
+            # 直接让 e2e 轮询“卡死”。保留风险提示，让用户自行选择 workers 数。
+            logger.warning(
+                "Windows 环境下多进程 workers=%s 可能在部分环境触发 WinError 10022；如遇启动失败请改为 --workers 1",
+                use_workers,
+            )
 
     try:
         # 启动服务器

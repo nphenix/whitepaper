@@ -5,18 +5,17 @@
 """
 预处理结果读取器
 
-该模块实现预处理结果读取器，从阶段3预处理结果目录读取文档。
-继承BaseLoader接口，支持读取clean.md、clean_content_list.json、images/和datajson/目录。
+该模块实现预处理结果读取器,从阶段3预处理结果目录读取文档.
+继承BaseLoader接口,支持读取clean.md,clean_content_list.json,images/和datajson/目录.
 
 参考LangChain 1.0最佳实践:
-- 继承BaseLoader接口，实现load()方法
+- 继承BaseLoader接口,实现load()方法
 - 返回langchain_core.documents.Document对象
 - 元数据必须包含source和format字段
 - 支持批量读取多个预处理结果目录
 """
 
 import json
-import logging
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -39,7 +38,7 @@ class PreprocessedDocumentReader(BaseLoader):
     """
     预处理结果读取器
 
-    从阶段3预处理结果目录读取文档，继承BaseLoader接口。
+    从阶段3预处理结果目录读取文档,继承BaseLoader接口.
     支持读取以下内容:
     - clean.md: 清洗后的Markdown内容
     - clean_content_list.json: 内容列表和元数据
@@ -71,26 +70,27 @@ class PreprocessedDocumentReader(BaseLoader):
         document_format: str | None = None,
         include_images: bool = True,
         include_charts: bool = True,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         初始化预处理结果读取器
 
         Args:
-            source: 预处理结果目录路径（data/cleaned/documents/{doc_name}/{extracted_dir}/）
-            document_format: 文档格式，如果未提供则尝试从目录结构推断
-            include_images: 是否在元数据中包含图片信息，默认为True
-            include_charts: 是否在元数据中包含图表JSON信息，默认为True
-            **kwargs: 额外的参数，包括metadata等
+            source: 预处理结果目录路径(data/cleaned/documents/{doc_name}/{extracted_dir}/)
+            document_format: 文档格式,如果未提供则尝试从目录结构推断
+            include_images: 是否在元数据中包含图片信息,默认为True
+            include_charts: 是否在元数据中包含图表JSON信息,默认为True
+            **kwargs: 额外的参数,包括metadata等
         """
         # 确保source是目录路径
         source_path = Path(source)
         if not source_path.exists():
             raise DocumentNotFoundError(source)
         if not source_path.is_dir():
-            raise LoaderError(f"Source must be a directory: {source}")
+            msg = f"Source must be a directory: {source}"
+            raise LoaderError(msg)
 
-        # 检测格式（从目录名或父目录名推断）
+        # 检测格式(从目录名或父目录名推断)
         if document_format is None:
             document_format = self._detect_format_from_path(source_path)
 
@@ -116,7 +116,7 @@ class PreprocessedDocumentReader(BaseLoader):
         """
         加载预处理结果并返回Document列表
 
-        读取clean.md文件，提取元数据，关联图片和图表信息。
+        读取clean.md文件,提取元数据,关联图片和图表信息.
 
         Returns:
             List[Document]: Document对象列表
@@ -127,13 +127,14 @@ class PreprocessedDocumentReader(BaseLoader):
         """
         # 检查必需文件
         if not self.clean_md_path.exists():
+            msg = f"clean.md文件不存在: {self.clean_md_path}"
             raise DocumentNotFoundError(
-                f"clean.md文件不存在: {self.clean_md_path}"
+                msg
             )
 
         try:
             # 读取clean.md内容
-            with open(self.clean_md_path, "r", encoding="utf-8") as f:
+            with open(self.clean_md_path, encoding="utf-8") as f:
                 page_content = f.read()
 
             if not page_content.strip():
@@ -155,8 +156,9 @@ class PreprocessedDocumentReader(BaseLoader):
 
         except Exception as e:
             logger.error(f"加载预处理结果时出错: {e}", exc_info=True)
+            msg = f"无法加载预处理结果: {e}"
             raise DocumentParsingError(
-                f"无法加载预处理结果: {e}",
+                msg,
                 source=str(self.source_path),
                 original_error=e,
             ) from e
@@ -165,7 +167,7 @@ class PreprocessedDocumentReader(BaseLoader):
         """
         懒加载预处理结果
 
-        由于预处理结果通常是单个文件，此方法直接返回load()的结果。
+        由于预处理结果通常是单个文件,此方法直接返回load()的结果.
 
         Yields:
             Document: 单个Document对象
@@ -176,7 +178,7 @@ class PreprocessedDocumentReader(BaseLoader):
         """
         提取元数据信息
 
-        从clean_content_list.json、images/和datajson/目录提取元数据。
+        从clean_content_list.json,images/和datajson/目录提取元数据.
 
         Returns:
             Dict[str, Any]: 元数据字典
@@ -191,7 +193,7 @@ class PreprocessedDocumentReader(BaseLoader):
         # 读取clean_content_list.json
         if self.clean_content_list_path.exists():
             try:
-                with open(self.clean_content_list_path, "r", encoding="utf-8") as f:
+                with open(self.clean_content_list_path, encoding="utf-8") as f:
                     content_list = json.load(f)
 
                 # 提取关键元数据
@@ -204,8 +206,8 @@ class PreprocessedDocumentReader(BaseLoader):
                         if "page_idx" in first_item:
                             # 将字典拆分为基本类型字段
                             metadata["page_first"] = int(first_item.get("page_idx", 0))
-                            metadata["page_total_items"] = int(len(content_list))
-                            # 如果需要保留完整信息，使用JSON字符串
+                            metadata["page_total_items"] = len(content_list)
+                            # 如果需要保留完整信息,使用JSON字符串
                             metadata["page_info_json"] = json.dumps({
                                 "first_page": first_item.get("page_idx", 0),
                                 "total_items": len(content_list),
@@ -214,13 +216,13 @@ class PreprocessedDocumentReader(BaseLoader):
                         # 提取格式信息 - 转换为字符串列表
                         if "type" in first_item:
                             content_types = list(
-                                set(item.get("type", "unknown") for item in content_list if isinstance(item, dict))
+                                {item.get("type", "unknown") for item in content_list if isinstance(item, dict)}
                             )
-                            # 将列表转换为逗号分隔的字符串（LlamaIndex要求）
+                            # 将列表转换为逗号分隔的字符串(LlamaIndex要求)
                             metadata["content_types"] = ",".join(content_types) if content_types else "unknown"
 
-                # content_list是复杂类型（列表），需要转换为JSON字符串以符合LlamaIndex要求
-                # 但为了保持向后兼容，我们保留原始列表，在vector_index中会转换为JSON字符串
+                # content_list是复杂类型(列表),需要转换为JSON字符串以符合LlamaIndex要求
+                # 但为了保持向后兼容,我们保留原始列表,在vector_index中会转换为JSON字符串
                 metadata["content_list"] = content_list
                 logger.debug(f"成功读取clean_content_list.json: {len(content_list)} 项")
 
@@ -252,8 +254,8 @@ class PreprocessedDocumentReader(BaseLoader):
                     chart_info = []
                     for json_file in json_files:
                         try:
-                            with open(json_file, "r", encoding="utf-8") as f:
-                                chart_data = json.load(f)
+                            with open(json_file, encoding="utf-8") as f:
+                                json.load(f)
                             chart_info.append({
                                 "name": json_file.stem,
                                 "file": json_file.name,
@@ -287,7 +289,7 @@ class PreprocessedDocumentReader(BaseLoader):
             path: 预处理结果目录路径
 
         Returns:
-            str: 检测到的格式，如果无法检测则返回'unknown'
+            str: 检测到的格式,如果无法检测则返回'unknown'
         """
         # 尝试从父目录名推断格式
         parent_name = path.parent.name.lower()
@@ -307,7 +309,7 @@ class PreprocessedDocumentReader(BaseLoader):
         if "html" in dir_name:
             return "html"
 
-        # 默认返回markdown（因为预处理后统一为Markdown格式）
+        # 默认返回markdown(因为预处理后统一为Markdown格式)
         return "markdown"
 
     def get_supported_formats(self) -> list[str]:
@@ -315,7 +317,7 @@ class PreprocessedDocumentReader(BaseLoader):
         获取支持的文档格式列表
 
         Returns:
-            List[str]: 支持的格式列表（预处理结果统一为Markdown）
+            List[str]: 支持的格式列表(预处理结果统一为Markdown)
         """
         return ["markdown", "pdf", "docx", "html"]
 
@@ -374,7 +376,7 @@ class PreprocessedDocumentReader(BaseLoader):
 
             except Exception as e:
                 logger.error(f"加载目录 {directory} 时出错: {e}", exc_info=True)
-                # 继续处理其他目录，不中断整个流程
+                # 继续处理其他目录,不中断整个流程
                 continue
 
         logger.info(f"批量加载完成: 总目录数={len(directories)}, 总文档数={len(all_documents)}")

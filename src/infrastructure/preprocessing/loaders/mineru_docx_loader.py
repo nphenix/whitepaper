@@ -6,12 +6,12 @@
 MinerU DOCX文档加载器
 
 该模块实现了基于MinerU在线服务的DOCX文档加载器,继承BaseLoader接口,
-使用T026A-MinerU实现的服务适配器调用MinerU服务处理DOCX文档。
+使用T026A-MinerU实现的服务适配器调用MinerU服务处理DOCX文档.
 
 功能特性:
 - 继承BaseLoader接口,兼容LangChain 1.0规范
 - 使用MinerU适配器进行DOCX解析
-- MinerU自动去除非主体内容,支持多模态内容提取(文本、公式、表格、图表等)
+- MinerU自动去除非主体内容,支持多模态内容提取(文本,公式,表格,图表等)
 - 降级方案:python-docx库(当MinerU服务不可用时自动降级)
 - 支持服务配置(API Token等)通过环境变量配置
 - 支持异步处理,避免阻塞主流程
@@ -51,17 +51,17 @@ class MinerUDOCXLoader(BaseLoader):
     MinerU DOCX文档加载器
 
     使用MinerU在线服务进行DOCX文档解析,自动去除非主体内容,
-    支持多模态内容提取(文本、公式、表格、图表等)。继承BaseLoader接口,
-    完全兼容LangChain 1.0规范。
+    支持多模态内容提取(文本,公式,表格,图表等).继承BaseLoader接口,
+    完全兼容LangChain 1.0规范.
 
     降级方案:
-    当MinerU服务不可用时,自动降级使用python-docx库进行DOCX解析。
-    降级后的文档质量可能较低,但能保证基本功能可用。
+    当MinerU服务不可用时,自动降级使用python-docx库进行DOCX解析.
+    降级后的文档质量可能较低,但能保证基本功能可用.
 
     最佳实践:
     1. 使用服务适配器模式,通过MinerUAdapter调用MinerU服务
     2. 统一返回LangChain Document对象
-    3. 包含完整的元数据(来源、段落数、处理时间等)
+    3. 包含完整的元数据(来源,段落数,处理时间等)
     4. 支持异步处理和错误重试
     5. 支持降级方案,提高可用性
     6. 支持按段落流式加载(大文件处理)
@@ -218,9 +218,9 @@ class MinerUDOCXLoader(BaseLoader):
         """
         加载DOCX文档并返回Document列表
 
-        这是所有加载器必须实现的核心方法。
+        这是所有加载器必须实现的核心方法.
         优先使用MinerU服务进行解析,如果失败且启用降级方案,
-        则自动降级使用python-docx库。
+        则自动降级使用python-docx库.
 
         Returns:
             List[Document]: 加载的文档列表,每个Document包含:
@@ -356,9 +356,9 @@ class MinerUDOCXLoader(BaseLoader):
         """
         懒加载DOCX文档,支持按段落流式加载
 
-        用于处理大文件,避免一次性加载所有段落到内存。
-        默认实现调用load()方法并迭代返回结果。
-        对于大文件,可以考虑按段落分割返回多个Document。
+        用于处理大文件,避免一次性加载所有段落到内存.
+        默认实现调用load()方法并迭代返回结果.
+        对于大文件,可以考虑按段落分割返回多个Document.
 
         Yields:
             Document: 单个文档对象
@@ -391,8 +391,8 @@ class MinerUDOCXLoader(BaseLoader):
         """
         异步加载DOCX文档
 
-        使用MinerU适配器的异步方法进行文档提取,避免阻塞主流程。
-        如果MinerU服务失败且启用降级方案,则在异步上下文中同步调用python-docx。
+        使用MinerU适配器的异步方法进行文档提取,避免阻塞主流程.
+        如果MinerU服务失败且启用降级方案,则在异步上下文中同步调用python-docx.
 
         Returns:
             List[Document]: 加载的文档列表
@@ -529,7 +529,7 @@ class MinerUDOCXLoader(BaseLoader):
         """
         异步懒加载DOCX文档
 
-        使用异步方法进行流式加载,支持大文件处理。
+        使用异步方法进行流式加载,支持大文件处理.
 
         Yields:
             Document: 单个文档对象

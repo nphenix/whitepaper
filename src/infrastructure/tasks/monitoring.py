@@ -163,7 +163,7 @@ class QueueMetrics:
 class TaskMonitor:
     """任务监控器
 
-    提供任务队列的监控和统计功能。
+    提供任务队列的监控和统计功能.
     """
 
     def __init__(self, settings: TaskSettings | None = None):

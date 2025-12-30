@@ -5,16 +5,16 @@
 """
 混合检索引擎实现 (T061)
 
-该模块实现混合检索引擎，融合向量检索、BM25检索、元数据检索和知识图谱检索，
-使用RRF（Reciprocal Rank Fusion）算法融合多种检索结果，支持动态检索策略和重排序。
+该模块实现混合检索引擎,融合向量检索,BM25检索,元数据检索和知识图谱检索,
+使用RRF(Reciprocal Rank Fusion)算法融合多种检索结果,支持动态检索策略和重排序.
 
 设计目标:
-- 融合向量检索（语义相似度）、BM25检索（关键词匹配）、元数据检索（结构化过滤）、知识图谱检索（实体关系）
-- 实现Reciprocal Rank Fusion (RRF)或其他融合算法，融合多种检索结果
-- 动态检索：根据查询类型（事实性问答、总结、比较等）动态选择检索策略
-- 重排序：支持对融合结果进行重排序（如使用Rerank模型）
-- 配置支持：支持配置不同检索模式的权重和融合策略
-- 性能优化：支持并行执行多种检索，优化响应时间
+- 融合向量检索(语义相似度),BM25检索(关键词匹配),元数据检索(结构化过滤),知识图谱检索(实体关系)
+- 实现Reciprocal Rank Fusion (RRF)或其他融合算法,融合多种检索结果
+- 动态检索:根据查询类型(事实性问答,总结,比较等)动态选择检索策略
+- 重排序:支持对融合结果进行重排序(如使用Rerank模型)
+- 配置支持:支持配置不同检索模式的权重和融合策略
+- 性能优化:支持并行执行多种检索,优化响应时间
 
 参考LangChain 1.0和LlamaIndex最佳实践:
 - 使用LlamaIndex的Retriever接口
@@ -24,24 +24,25 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
-from src.infrastructure.indexing.knowledge_graph import KnowledgeGraphBuilder
-from src.infrastructure.indexing.metadata_index import MetadataIndexBuilder
-from src.infrastructure.indexing.vector_index import VectorIndexBuilder
 from src.shared.config.llm_service import LLMService, get_llm_service
 from src.shared.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
+    from src.infrastructure.indexing.knowledge_graph import KnowledgeGraphBuilder
+    from src.infrastructure.indexing.metadata_index import MetadataIndexBuilder
+    from src.infrastructure.indexing.vector_index import VectorIndexBuilder
 
 logger = get_logger(__name__)
 
 try:
-    from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle
     from llama_index.core.retrievers import BaseRetriever
+    from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle
 
     LLAMA_INDEX_AVAILABLE = True
 except ImportError:  # pragma: no cover - 仅在未安装 llama-index 时触发
@@ -86,7 +87,8 @@ class RetrievalWeights:
     def __post_init__(self) -> None:
         """验证权重值"""
         if any(w < 0 for w in [self.vector_weight, self.bm25_weight, self.metadata_weight, self.graph_weight]):
-            raise ValueError("权重值不能为负数")
+            msg = "权重值不能为负数"
+            raise ValueError(msg)
 
 
 @dataclass
@@ -97,14 +99,14 @@ class HybridRetrieverConfig:
     enable_vector: bool = True
     enable_bm25: bool = True
     enable_metadata: bool = True
-    enable_graph: bool = False  # 默认关闭，因为知识图谱构建较慢
+    enable_graph: bool = False  # 默认关闭,因为知识图谱构建较慢
 
     # 融合策略
     fusion_strategy: FusionStrategy = FusionStrategy.RRF
     rrf_k: int = 60  # RRF算法的k参数
 
     # 检索权重
-    weights: RetrievalWeights = None  # type: ignore[assignment]
+    weights: RetrievalWeights | None = None
 
     # 重排序配置
     enable_rerank: bool = True
@@ -137,7 +139,7 @@ class HybridRetriever:
     """
     混合检索引擎
 
-    融合向量检索、BM25检索、元数据检索和知识图谱检索，使用RRF算法融合结果。
+    融合向量检索,BM25检索,元数据检索和知识图谱检索,使用RRF算法融合结果.
 
     典型用法:
         >>> retriever = HybridRetriever(
@@ -166,16 +168,19 @@ class HybridRetriever:
             metadata_index_builder: 元数据索引构建器
             knowledge_graph_builder: 知识图谱构建器
             config: 混合检索引擎配置
-            llm_service: LLM服务，用于重排序
+            llm_service: LLM服务,用于重排序
 
         Raises:
             ImportError: 如果LlamaIndex未安装
             HybridRetrieverError: 如果初始化失败
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use HybridRetriever."
+            )
+            raise ImportError(
+                msg
             )
 
         self.vector_index_builder = vector_index_builder
@@ -192,8 +197,9 @@ class HybridRetriever:
             self.config.enable_metadata and self.metadata_index_builder,
             self.config.enable_graph and self.knowledge_graph_builder,
         ]):
+            msg = "至少需要启用一种检索模式并提供对应的索引构建器"
             raise HybridRetrieverError(
-                "至少需要启用一种检索模式并提供对应的索引构建器"
+                msg
             )
 
         logger.info(
@@ -216,18 +222,19 @@ class HybridRetriever:
 
         Args:
             query_str: 查询文本
-            top_k: 返回结果数量，如果为None则使用配置的default_top_k
-            query_type: 查询类型，用于动态选择检索策略
+            top_k: 返回结果数量,如果为None则使用配置的default_top_k
+            query_type: 查询类型,用于动态选择检索策略
             filters: 元数据过滤器
 
         Returns:
-            检索结果列表（NodeWithScore对象），按相关性排序
+            检索结果列表(NodeWithScore对象),按相关性排序
 
         Raises:
             HybridRetrieverError: 如果检索失败
         """
         if not query_str or not query_str.strip():
-            raise ValueError("查询文本不能为空")
+            msg = "查询文本不能为空"
+            raise ValueError(msg)
 
         top_k = top_k or self.config.default_top_k
 
@@ -261,7 +268,7 @@ class HybridRetriever:
             # 融合检索结果
             fused_results = self._fuse_results(results, config=adjusted_config)
 
-            # 重排序（如果启用）
+            # 重排序(如果启用)
             if self.config.enable_rerank and len(fused_results) > 0:
                 reranked_results = self._rerank_results(
                     query_str=query_str,
@@ -326,7 +333,7 @@ class HybridRetriever:
 
         # 根据查询类型调整权重
         if query_type == QueryType.FACTUAL_QA:
-            # 事实性问答：优先向量检索和BM25检索
+            # 事实性问答:优先向量检索和BM25检索
             adjusted_config.weights = RetrievalWeights(
                 vector_weight=1.2,
                 bm25_weight=1.2,
@@ -334,7 +341,7 @@ class HybridRetriever:
                 graph_weight=0.4,
             )
         elif query_type == QueryType.SUMMARIZATION:
-            # 总结：优先向量检索
+            # 总结:优先向量检索
             adjusted_config.weights = RetrievalWeights(
                 vector_weight=1.5,
                 bm25_weight=0.8,
@@ -342,7 +349,7 @@ class HybridRetriever:
                 graph_weight=0.3,
             )
         elif query_type == QueryType.COMPARISON:
-            # 比较：优先元数据检索和知识图谱检索
+            # 比较:优先元数据检索和知识图谱检索
             adjusted_config.weights = RetrievalWeights(
                 vector_weight=0.8,
                 bm25_weight=0.8,
@@ -350,7 +357,7 @@ class HybridRetriever:
                 graph_weight=1.0,
             )
         elif query_type == QueryType.EXPLANATION:
-            # 解释：优先向量检索和知识图谱检索
+            # 解释:优先向量检索和知识图谱检索
             adjusted_config.weights = RetrievalWeights(
                 vector_weight=1.3,
                 bm25_weight=0.7,
@@ -377,7 +384,7 @@ class HybridRetriever:
             config: 检索配置
 
         Returns:
-            检索结果字典，key为检索模式名称，value为结果列表
+            检索结果字典,key为检索模式名称,value为结果列表
         """
         results: dict[str, list[NodeWithScore]] = {}
 
@@ -415,13 +422,13 @@ class HybridRetriever:
                 return []
             try:
                 # 元数据检索需要将查询转换为元数据过滤条件
-                # 这里简化处理，使用filters进行查询
-                metadata_records = self.metadata_index_builder.query(
+                # 这里简化处理,使用filters进行查询
+                self.metadata_index_builder.query(
                     filters=filters,
                     limit=top_k,
                 )
                 # 将元数据记录转换为NodeWithScore对象
-                # 注意：这里需要根据实际需求实现转换逻辑
+                # 注意:这里需要根据实际需求实现转换逻辑
                 return []
             except Exception as exc:
                 logger.warning("元数据检索失败: %s", exc)
@@ -432,14 +439,14 @@ class HybridRetriever:
             if not config.enable_graph or not self.knowledge_graph_builder:
                 return []
             try:
-                # 知识图谱检索需要从查询中提取实体，然后查询相关实体
-                # 这里简化处理，返回空列表
+                # 知识图谱检索需要从查询中提取实体,然后查询相关实体
+                # 这里简化处理,返回空列表
                 return []
             except Exception as exc:
                 logger.warning("知识图谱检索失败: %s", exc)
                 return []
 
-        # 并行执行所有检索（使用线程池）
+        # 并行执行所有检索(使用线程池)
         try:
             import concurrent.futures
 
@@ -520,11 +527,11 @@ class HybridRetriever:
         if config.enable_metadata and self.metadata_index_builder:
             try:
                 # 元数据检索需要特殊处理
-                metadata_records = self.metadata_index_builder.query(
+                self.metadata_index_builder.query(
                     filters=filters,
                     limit=top_k,
                 )
-                # 转换为NodeWithScore对象（需要根据实际需求实现）
+                # 转换为NodeWithScore对象(需要根据实际需求实现)
                 results["metadata"] = []
             except Exception as exc:
                 logger.warning("元数据检索失败: %s", exc)
@@ -554,7 +561,7 @@ class HybridRetriever:
             config: 融合配置
 
         Returns:
-            融合后的结果列表，按相关性排序
+            融合后的结果列表,按相关性排序
         """
         if not results:
             return []
@@ -577,7 +584,7 @@ class HybridRetriever:
         config: HybridRetrieverConfig,
     ) -> list[NodeWithScore]:
         """
-        使用RRF（Reciprocal Rank Fusion）算法融合结果
+        使用RRF(Reciprocal Rank Fusion)算法融合结果
 
         Args:
             results: 检索结果字典
@@ -591,10 +598,10 @@ class HybridRetriever:
 
         # 权重映射
         weights = {
-            "vector": config.weights.vector_weight,
-            "bm25": config.weights.bm25_weight,
-            "metadata": config.weights.metadata_weight,
-            "graph": config.weights.graph_weight,
+            "vector": config.weights.vector_weight if config.weights else 1.0,
+            "bm25": config.weights.bm25_weight if config.weights else 1.0,
+            "metadata": config.weights.metadata_weight if config.weights else 0.8,
+            "graph": config.weights.graph_weight if config.weights else 0.6,
         }
 
         # 计算每个检索模式的RRF分数
@@ -630,7 +637,7 @@ class HybridRetriever:
         # 更新分数为RRF分数
         for result in fused_results:
             node_id = result.node.node_id
-            result.score = node_scores[node_id]  # type: ignore[assignment]
+            result.score = node_scores[node_id]
 
         return fused_results
 
@@ -654,10 +661,10 @@ class HybridRetriever:
 
         # 权重映射
         weights = {
-            "vector": config.weights.vector_weight,
-            "bm25": config.weights.bm25_weight,
-            "metadata": config.weights.metadata_weight,
-            "graph": config.weights.graph_weight,
+            "vector": config.weights.vector_weight if config.weights else 1.0,
+            "bm25": config.weights.bm25_weight if config.weights else 1.0,
+            "metadata": config.weights.metadata_weight if config.weights else 0.8,
+            "graph": config.weights.graph_weight if config.weights else 0.6,
         }
 
         # 归一化每个检索模式的分数
@@ -666,7 +673,7 @@ class HybridRetriever:
                 continue
 
             # 找到最大分数用于归一化
-            max_score = max((r.score for r in mode_results), default=1.0)
+            max_score = max((r.score or 0.0 for r in mode_results), default=1.0)
             if max_score == 0:
                 max_score = 1.0
 
@@ -674,7 +681,7 @@ class HybridRetriever:
             for result in mode_results:
                 node_id = result.node.node_id
                 # 归一化分数并加权
-                normalized_score = result.score / max_score
+                normalized_score = (result.score or 0.0) / max_score
                 node_scores[node_id] += weight * normalized_score
 
         # 创建节点ID到NodeWithScore的映射
@@ -698,7 +705,7 @@ class HybridRetriever:
         # 更新分数为加权分数
         for result in fused_results:
             node_id = result.node.node_id
-            result.score = node_scores[node_id]  # type: ignore[assignment]
+            result.score = node_scores[node_id]
 
         return fused_results
 
@@ -722,10 +729,10 @@ class HybridRetriever:
 
         # 权重映射
         weights = {
-            "vector": config.weights.vector_weight,
-            "bm25": config.weights.bm25_weight,
-            "metadata": config.weights.metadata_weight,
-            "graph": config.weights.graph_weight,
+            "vector": config.weights.vector_weight if config.weights else 1.0,
+            "bm25": config.weights.bm25_weight if config.weights else 1.0,
+            "metadata": config.weights.metadata_weight if config.weights else 0.8,
+            "graph": config.weights.graph_weight if config.weights else 0.6,
         }
 
         # 找到每个节点的最大加权分数
@@ -736,7 +743,7 @@ class HybridRetriever:
             weight = weights.get(mode, 1.0)
             for result in mode_results:
                 node_id = result.node.node_id
-                weighted_score = weight * result.score
+                weighted_score = weight * (result.score or 0.0)
                 if node_id not in node_scores or weighted_score > node_scores[node_id]:
                     node_scores[node_id] = weighted_score
 
@@ -761,7 +768,7 @@ class HybridRetriever:
         # 更新分数为最大分数
         for result in fused_results:
             node_id = result.node.node_id
-            result.score = node_scores[node_id]  # type: ignore[assignment]
+            result.score = node_scores[node_id]
 
         return fused_results
 
@@ -785,10 +792,10 @@ class HybridRetriever:
 
         # 权重映射
         weights = {
-            "vector": config.weights.vector_weight,
-            "bm25": config.weights.bm25_weight,
-            "metadata": config.weights.metadata_weight,
-            "graph": config.weights.graph_weight,
+            "vector": config.weights.vector_weight if config.weights else 1.0,
+            "bm25": config.weights.bm25_weight if config.weights else 1.0,
+            "metadata": config.weights.metadata_weight if config.weights else 0.8,
+            "graph": config.weights.graph_weight if config.weights else 0.6,
         }
 
         # 收集每个节点的所有分数
@@ -799,7 +806,7 @@ class HybridRetriever:
             weight = weights.get(mode, 1.0)
             for result in mode_results:
                 node_id = result.node.node_id
-                weighted_score = weight * result.score
+                weighted_score = weight * (result.score or 0.0)
                 node_scores_list[node_id].append(weighted_score)
 
         # 计算平均分数
@@ -829,7 +836,7 @@ class HybridRetriever:
         # 更新分数为平均分数
         for result in fused_results:
             node_id = result.node.node_id
-            result.score = node_scores[node_id]  # type: ignore[assignment]
+            result.score = node_scores[node_id]
 
         return fused_results
 
@@ -856,7 +863,7 @@ class HybridRetriever:
             rerank_model = self.llm_service.get_rerank_model()
 
             # 准备文档列表
-            documents = [result.node.text for result in results]
+            documents = [getattr(result.node, "text", "") for result in results]
 
             # 执行重排序
             rerank_results = rerank_model.rerank(
@@ -864,11 +871,11 @@ class HybridRetriever:
                 documents=documents,
             )
 
-            # 某些Rerank实现可能在失败时“吞异常并返回空列表”
-            # 如果直接返回空结果会把最终检索结果清零，因此需要回退到原始候选
+            # 某些Rerank实现可能在失败时"吞异常并返回空列表"
+            # 如果直接返回空结果会把最终检索结果清零,因此需要回退到原始候选
             if not rerank_results:
                 logger.warning(
-                    "重排序返回空结果，回退到原始结果: query=%s, candidates=%s",
+                    "重排序返回空结果,回退到原始结果: query=%s, candidates=%s",
                     query_str[:50],
                     len(results),
                 )
@@ -884,7 +891,7 @@ class HybridRetriever:
 
             if not reranked_indices:
                 logger.warning(
-                    "重排序结果索引无效或为空，回退到原始结果: query=%s, candidates=%s",
+                    "重排序结果索引无效或为空,回退到原始结果: query=%s, candidates=%s",
                     query_str[:50],
                     len(results),
                 )
@@ -898,7 +905,7 @@ class HybridRetriever:
                     break
                 score = rerank_result.get("relevance_score")
                 if isinstance(score, (int, float)):
-                    reranked_results[i].score = float(score)  # type: ignore[assignment]
+                    reranked_results[i].score = float(score)
 
             logger.info(
                 "重排序完成: query=%s, results_count=%s",
@@ -909,6 +916,6 @@ class HybridRetriever:
             return reranked_results
 
         except Exception as exc:
-            logger.warning("重排序失败，返回原始结果: %s", exc)
+            logger.warning("重排序失败,返回原始结果: %s", exc)
             return results
 

@@ -5,7 +5,7 @@
 """
 LangMem 适配器
 
-基于 LangChain 1.0 官方最佳实践实现的长期记忆管理适配器。
+基于 LangChain 1.0 官方最佳实践实现的长期记忆管理适配器.
 
 重要更新 (符合官方规范):
     ✅ 使用 namespace 而非 user_id 进行记忆隔离
@@ -86,7 +86,7 @@ class LangMemError(BaseApplicationError):
 class MemoryType(str, Enum):
     """记忆类型枚举
 
-    定义不同类型的记忆条目,用于分类和检索。
+    定义不同类型的记忆条目,用于分类和检索.
     """
 
     USER_INTERACTION = "user_interaction"
@@ -119,7 +119,7 @@ class MemoryMetadata:
 class MemoryEntry(BaseModel):
     """记忆条目模型
 
-    使用 namespace 作为记忆隔离标识, 符合 LangGraph Store 架构。
+    使用 namespace 作为记忆隔离标识, 符合 LangGraph Store 架构.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -170,7 +170,7 @@ class MemoryResult(BaseModel):
 class LangMemAdapter:
     """LangMem 适配器
 
-    封装LangMem和LangGraph Store,提供统一的记忆管理接口。
+    封装LangMem和LangGraph Store,提供统一的记忆管理接口.
 
     官方推荐架构:
         from langgraph.store.memory import InMemoryStore
@@ -705,8 +705,8 @@ class LangMemAdapter:
     def get_memory_tools(self, namespace: tuple[str, ...] | None = None) -> list[Any]:
         """获取记忆管理工具列表,供Agent使用
 
-        基于LangChain 1.0和LangMem最佳实践,返回记忆管理工具。
-        这些工具可以直接传递给create_agent使用。
+        基于LangChain 1.0和LangMem最佳实践,返回记忆管理工具.
+        这些工具可以直接传递给create_agent使用.
 
         Args:
             namespace: 命名空间元组,如果为None则使用默认namespace ('memories',)

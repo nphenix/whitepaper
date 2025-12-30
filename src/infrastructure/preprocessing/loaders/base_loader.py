@@ -5,8 +5,8 @@
 """
 基础文档加载器接口
 
-该模块定义了文档加载器的基础接口,兼容LangChain 1.0的BaseLoader接口。
-所有具体的文档加载器实现都必须继承此基类并实现相应方法。
+该模块定义了文档加载器的基础接口,兼容LangChain 1.0的BaseLoader接口.
+所有具体的文档加载器实现都必须继承此基类并实现相应方法.
 
 参考LangChain 1.0最佳实践:
 - 使用langchain_core.documents.Document作为标准文档格式
@@ -30,8 +30,8 @@ class BaseLoader(ABC):
     """
     基础文档加载器抽象基类
 
-    该类定义了所有文档加载器必须实现的核心接口,兼容LangChain 1.0规范。
-    提供了同步和异步加载能力,支持批量处理和流式处理。
+    该类定义了所有文档加载器必须实现的核心接口,兼容LangChain 1.0规范.
+    提供了同步和异步加载能力,支持批量处理和流式处理.
 
     所有继承此基类的加载器都必须:
     1. 实现load()方法,返回List[Document]
@@ -62,7 +62,7 @@ class BaseLoader(ABC):
         """
         加载文档并返回Document列表
 
-        这是所有加载器必须实现的核心方法。
+        这是所有加载器必须实现的核心方法.
         返回的Document对象必须包含:
         - page_content: 文档文本内容
         - metadata: 至少包含source和format字段的元数据
@@ -78,8 +78,8 @@ class BaseLoader(ABC):
         """
         懒加载文档,支持流式处理
 
-        默认实现调用load()方法并迭代返回结果。
-        对于大文件处理,建议重写此方法以实现真正的流式处理。
+        默认实现调用load()方法并迭代返回结果.
+        对于大文件处理,建议重写此方法以实现真正的流式处理.
 
         Yields:
             Document: 单个文档对象
@@ -93,8 +93,8 @@ class BaseLoader(ABC):
         """
         异步加载文档
 
-        默认实现是同步调用load()方法。
-        对于支持异步的加载器,建议重写此方法。
+        默认实现是同步调用load()方法.
+        对于支持异步的加载器,建议重写此方法.
 
         Returns:
             List[Document]: 加载的文档列表
@@ -105,8 +105,8 @@ class BaseLoader(ABC):
         """
         异步懒加载文档
 
-        默认实现是同步调用lazy_load()方法。
-        对于支持异步流式处理的加载器,建议重写此方法。
+        默认实现是同步调用lazy_load()方法.
+        对于支持异步流式处理的加载器,建议重写此方法.
 
         Yields:
             Document: 单个文档对象
@@ -151,7 +151,7 @@ class BaseLoader(ABC):
         """
         创建标准格式的Document对象
 
-        确保所有Document都包含必要的元数据字段。
+        确保所有Document都包含必要的元数据字段.
 
         Args:
             page_content: 文档文本内容

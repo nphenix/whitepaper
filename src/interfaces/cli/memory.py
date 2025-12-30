@@ -5,8 +5,10 @@
 """
 记忆系统CLI命令
 
-提供记忆系统管理、交互历史记录等功能的命令行接口。
+提供记忆系统管理,交互历史记录等功能的命令行接口.
 """
+
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -53,7 +55,7 @@ def status() -> None:
 @memory_app.command()
 def history(
     limit: int = typer.Option(10, "--limit", "-l", help="返回历史记录数量限制"),
-    user_id: str | None = typer.Option(None, "--user", "-u", help="用户ID"),
+    user_id: Optional[str] = typer.Option(None, "--user", "-u", help="用户ID"),
 ) -> None:
     """显示交互历史"""
     BaseCLI()
@@ -89,13 +91,13 @@ def history(
 @memory_app.command()
 def clear(
     confirm: bool = typer.Option(False, "--confirm", "-y", help="确认清除"),
-    user_id: str | None = typer.Option(None, "--user", "-u", help="用户ID"),
+    user_id: Optional[str] = typer.Option(None, "--user", "-u", help="用户ID"),
 ) -> None:
     """清除记忆数据"""
     base_cli = BaseCLI()
 
     if not confirm:
-        if not base_cli.confirm_action("确定要清除记忆数据吗?此操作不可撤销。"):
+        if not base_cli.confirm_action("确定要清除记忆数据吗?此操作不可撤销."):
             console.print("[bold yellow]操作已取消[/bold yellow]")
             raise typer.Exit(0)
 
@@ -110,7 +112,7 @@ def clear(
 
 @memory_app.command()
 def analyze(
-    user_id: str | None = typer.Option(None, "--user", "-u", help="用户ID"),
+    user_id: Optional[str] = typer.Option(None, "--user", "-u", help="用户ID"),
     days: int = typer.Option(7, "--days", "-d", help="分析天数"),
 ) -> None:
     """分析交互模式"""

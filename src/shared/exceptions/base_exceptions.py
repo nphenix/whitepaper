@@ -6,7 +6,7 @@
 基础异常类模块
 
 提供系统级的基础异常类, 用于统一的错误处理.
-所有自定义异常都应该继承自这些基础异常类。
+所有自定义异常都应该继承自这些基础异常类.
 """
 
 from typing import Any
@@ -70,7 +70,7 @@ class BaseApplicationError(Exception):
 class ConfigurationError(BaseApplicationError):
     """配置错误异常
 
-    当系统配置不正确或缺失时抛出。
+    当系统配置不正确或缺失时抛出.
     """
 
     def __init__(self, message: str, config_key: str | None = None, **kwargs):
@@ -89,7 +89,7 @@ class ConfigurationError(BaseApplicationError):
 class ValidationError(BaseApplicationError):
     """验证错误异常
 
-    当数据验证失败时抛出。
+    当数据验证失败时抛出.
     """
 
     def __init__(
@@ -117,7 +117,7 @@ class ValidationError(BaseApplicationError):
 class BusinessLogicError(BaseApplicationError):
     """业务逻辑错误异常
 
-    当业务规则被违反时抛出。
+    当业务规则被违反时抛出.
     """
 
     def __init__(self, message: str, business_rule: str | None = None, **kwargs):
@@ -136,7 +136,7 @@ class BusinessLogicError(BaseApplicationError):
 class ResourceNotFoundError(BaseApplicationError):
     """资源未找到错误异常
 
-    当请求的资源不存在时抛出。
+    当请求的资源不存在时抛出.
     """
 
     def __init__(
@@ -164,7 +164,7 @@ class ResourceNotFoundError(BaseApplicationError):
 class CustomPermissionError(BaseApplicationError):
     """权限错误异常
 
-    当用户权限不足时抛出。
+    当用户权限不足时抛出.
     """
 
     def __init__(self, message: str, required_permission: str | None = None, **kwargs):
@@ -183,7 +183,7 @@ class CustomPermissionError(BaseApplicationError):
 class CustomTimeoutError(BaseApplicationError):
     """超时错误异常
 
-    当操作超时时抛出。
+    当操作超时时抛出.
     """
 
     def __init__(
@@ -211,7 +211,7 @@ class CustomTimeoutError(BaseApplicationError):
 class RateLimitError(BaseApplicationError):
     """速率限制错误异常
 
-    当请求超过速率限制时抛出。
+    当请求超过速率限制时抛出.
     """
 
     def __init__(
@@ -239,7 +239,7 @@ class RateLimitError(BaseApplicationError):
 class ProcessingError(BaseApplicationError):
     """处理错误异常
 
-    当数据处理过程中出现错误时抛出。
+    当数据处理过程中出现错误时抛出.
     """
 
     def __init__(

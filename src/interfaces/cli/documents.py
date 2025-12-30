@@ -5,14 +5,15 @@
 """
 文档管理CLI命令
 
-提供文档上传、预处理、清洗等功能的命令行接口。
-集成T033文档服务,支持同步和异步处理。
+提供文档上传,预处理,清洗等功能的命令行接口.
+集成T033文档服务,支持同步和异步处理.
 """
 
 import asyncio
 import json
 import uuid
 from pathlib import Path
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -60,10 +61,10 @@ def _format_processing_time(seconds: float) -> str:
 @documents_app.command()
 def upload(
     file_path: str = typer.Argument(..., help="要上传的文档文件路径"),
-    uploaded_by: str | None = typer.Option(
+    uploaded_by: Optional[str] = typer.Option(
         None, "--uploaded-by", "-u", help="上传用户ID"
     ),
-    format: str | None = typer.Option(
+    format: Optional[str] = typer.Option(
         None, "--format", "-f", help="文档格式(可选,自动检测)"
     ),
     enable_chart_conversion: bool = typer.Option(
@@ -74,7 +75,7 @@ def upload(
     use_agent: bool = typer.Option(
         True, "--use-agent/--use-preprocessor", help="使用Agent还是Preprocessor"
     ),
-    output_dir: str | None = typer.Option(
+    output_dir: Optional[str] = typer.Option(
         None, "--output-dir", "-o", help="输出目录(可选)"
     ),
 ) -> None:
@@ -165,10 +166,10 @@ def upload(
 @documents_app.command()
 def upload_async(
     file_path: str = typer.Argument(..., help="要上传的文档文件路径"),
-    uploaded_by: str | None = typer.Option(
+    uploaded_by: Optional[str] = typer.Option(
         None, "--uploaded-by", "-u", help="上传用户ID"
     ),
-    format: str | None = typer.Option(
+    format: Optional[str] = typer.Option(
         None, "--format", "-f", help="文档格式(可选,自动检测)"
     ),
     enable_chart_conversion: bool = typer.Option(
@@ -258,8 +259,8 @@ def upload_async(
 
 @documents_app.command()
 def upload_batch_async(
-    file_paths: list[str] = typer.Argument(..., help="要上传的文档文件路径列表"),
-    uploaded_by: str | None = typer.Option(
+    file_paths: List[str] = typer.Argument(..., help="要上传的文档文件路径列表"),
+    uploaded_by: Optional[str] = typer.Option(
         None, "--uploaded-by", "-u", help="上传用户ID"
     ),
     batch_size: int = typer.Option(10, "--batch-size", "-b", help="批量处理大小"),
@@ -365,11 +366,11 @@ def upload_batch_async(
 
 @documents_app.command()
 def list(
-    uploaded_by: str | None = typer.Option(
+    uploaded_by: Optional[str] = typer.Option(
         None, "--uploaded-by", "-u", help="上传用户ID"
     ),
-    status: str | None = typer.Option(None, "--status", "-s", help="文档状态过滤"),
-    limit: int | None = typer.Option(None, "--limit", "-l", help="限制返回数量"),
+    status: Optional[str] = typer.Option(None, "--status", "-s", help="文档状态过滤"),
+    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="限制返回数量"),
 ) -> None:
     """列出系统中的文档"""
     BaseCLI()
@@ -664,7 +665,7 @@ def process_batch(
     use_agent: bool = typer.Option(
         True, "--use-agent/--use-preprocessor", help="使用Agent还是Preprocessor"
     ),
-    limit: int | None = typer.Option(None, "--limit", "-l", help="限制处理数量"),
+    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="限制处理数量"),
 ) -> None:
     """批量处理待处理的文档"""
     BaseCLI()

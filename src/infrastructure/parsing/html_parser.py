@@ -5,15 +5,15 @@
 """
 HTML解析器
 
-该模块实现HTML解析器，处理阶段5信息源爬取任务（T220-T224）获取的网页HTML内容。
-提取网页正文内容，去除导航、广告、页眉页脚等无关内容，提取结构化信息，
-并转换为LlamaIndex Node对象列表。
+该模块实现HTML解析器,处理阶段5信息源爬取任务(T220-T224)获取的网页HTML内容.
+提取网页正文内容,去除导航,广告,页眉页脚等无关内容,提取结构化信息,
+并转换为LlamaIndex Node对象列表.
 
 参考LlamaIndex最佳实践:
 - 使用llama_index.core.schema.Node作为节点格式
-- 保留完整的元数据信息，包括章节路径、结构信息等
-- 支持结构化检索（章节路径、文档层级）
-- 提取网页标题、URL、发布时间等元数据
+- 保留完整的元数据信息,包括章节路径,结构信息等
+- 支持结构化检索(章节路径,文档层级)
+- 提取网页标题,URL,发布时间等元数据
 
 参考文档:
 - BeautifulSoup4: https://www.crummy.com/software/BeautifulSoup/bs4/doc/
@@ -21,13 +21,11 @@ HTML解析器
 - trafilatura: https://trafilatura.readthedocs.io/
 """
 
-import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
 
 from langchain_core.documents import Document
 
@@ -53,7 +51,7 @@ try:
 except ImportError:
     logger.warning("readability-lxml not available, readability extraction will be disabled")
     READABILITY_AVAILABLE = False
-    ReadabilityDocument = None  # type: ignore
+    ReadabilityDocument = None
 
 try:
     import trafilatura
@@ -100,7 +98,7 @@ class HTMLElement:
 @dataclass
 class SectionContext:
     """章节上下文数据类"""
-    path: str  # 章节路径，如 "1.2.3"
+    path: str  # 章节路径,如 "1.2.3"
     title: str  # 章节标题
     level: int  # 标题级别
     parent_path: str | None = None  # 父章节路径
@@ -110,15 +108,15 @@ class HTMLParser:
     """
     HTML解析器
 
-    解析HTML内容，提取正文内容，去除导航、广告、页眉页脚等无关内容，
-    提取结构化信息，并转换为LlamaIndex Node对象列表。
+    解析HTML内容,提取正文内容,去除导航,广告,页眉页脚等无关内容,
+    提取结构化信息,并转换为LlamaIndex Node对象列表.
 
     功能特性:
-    - 提取网页正文内容（使用BeautifulSoup4、readability-lxml或trafilatura）
-    - 去除HTML标签、脚本、样式等无关内容
-    - 提取结构化元素（标题、段落、列表、表格等）
-    - 根据标题层次自动生成章节路径（如"1.2.3"）
-    - 提取网页标题、URL、发布时间等元数据
+    - 提取网页正文内容(使用BeautifulSoup4,readability-lxml或trafilatura)
+    - 去除HTML标签,脚本,样式等无关内容
+    - 提取结构化元素(标题,段落,列表,表格等)
+    - 根据标题层次自动生成章节路径(如"1.2.3")
+    - 提取网页标题,URL,发布时间等元数据
     - 输出LlamaIndex Node对象列表
 
     示例:
@@ -142,18 +140,20 @@ class HTMLParser:
         初始化HTML解析器
 
         Args:
-            use_readability: 是否使用readability-lxml提取正文，默认为True
-            use_trafilatura: 是否使用trafilatura提取正文（优先级高于readability），默认为False
-            preserve_metadata: 是否保留所有元数据，默认为True
+            use_readability: 是否使用readability-lxml提取正文,默认为True
+            use_trafilatura: 是否使用trafilatura提取正文(优先级高于readability),默认为False
+            preserve_metadata: 是否保留所有元数据,默认为True
         """
         if not BS4_AVAILABLE:
+            msg = "BeautifulSoup4 is not available. Please install beautifulsoup4 package."
             raise ImportError(
-                "BeautifulSoup4 is not available. Please install beautifulsoup4 package."
+                msg
             )
 
         if not LLAMA_INDEX_AVAILABLE:
+            msg = "LlamaIndex is not available. Please install llama-index package."
             raise ImportError(
-                "LlamaIndex is not available. Please install llama-index package."
+                msg
             )
 
         self.use_readability = use_readability and READABILITY_AVAILABLE
@@ -180,12 +180,12 @@ class HTMLParser:
         """
         解析HTML内容
 
-        提取正文内容，提取结构化信息，并转换为LlamaIndex Node对象列表。
+        提取正文内容,提取结构化信息,并转换为LlamaIndex Node对象列表.
 
         Args:
             html_content: HTML内容字符串
-            url: 网页URL（可选，用于提取元数据）
-            metadata: 可选的元数据字典，会与提取的元数据合并
+            url: 网页URL(可选,用于提取元数据)
+            metadata: 可选的元数据字典,会与提取的元数据合并
 
         Returns:
             List[Node]: LlamaIndex Node对象列表
@@ -211,7 +211,7 @@ class HTMLParser:
 
         extracted_metadata["format"] = "html"
 
-        # 解析结构化元素（从BeautifulSoup对象提取）
+        # 解析结构化元素(从BeautifulSoup对象提取)
         elements = self._extract_elements_from_soup(soup)
 
         # 生成章节路径
@@ -244,7 +244,7 @@ class HTMLParser:
 
         Args:
             file_path: HTML文件路径
-            url: 网页URL（可选）
+            url: 网页URL(可选)
             metadata: 可选的元数据字典
 
         Returns:
@@ -252,12 +252,13 @@ class HTMLParser:
         """
         path = Path(file_path)
         if not path.exists():
-            raise FileNotFoundError(f"HTML文件不存在: {file_path}")
+            msg = f"HTML文件不存在: {file_path}"
+            raise FileNotFoundError(msg)
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             html_content = f.read()
 
-        # 如果没有提供URL，使用文件路径
+        # 如果没有提供URL,使用文件路径
         if not url:
             url = str(path.absolute())
 
@@ -271,12 +272,12 @@ class HTMLParser:
         """
         提取HTML正文内容和元数据
 
-        使用trafilatura、readability-lxml或BeautifulSoup4提取正文内容，
-        并提取网页标题、URL、发布时间等元数据。
+        使用trafilatura,readability-lxml或BeautifulSoup4提取正文内容,
+        并提取网页标题,URL,发布时间等元数据.
 
         Args:
             html_content: HTML内容字符串
-            url: 网页URL（可选）
+            url: 网页URL(可选)
 
         Returns:
             Tuple[BeautifulSoup, Dict[str, Any]]: (清理后的BeautifulSoup对象, 元数据字典)
@@ -306,7 +307,7 @@ class HTMLParser:
             if pub_time:
                 metadata["publish_date"] = pub_time
 
-        # 优先使用trafilatura（如果可用且启用）- 返回纯文本
+        # 优先使用trafilatura(如果可用且启用)- 返回纯文本
         if self.use_trafilatura:
             try:
                 extracted = trafilatura.extract(
@@ -329,13 +330,13 @@ class HTMLParser:
                             "tags": metadata_dict.tags,
                             "description": metadata_dict.description or metadata.get("description"),
                         })
-                    # trafilatura返回纯文本，我们需要重新解析为HTML结构
-                    # 为了保持结构化信息，我们使用BeautifulSoup降级方案
-                    logger.debug("trafilatura提取成功，但使用BeautifulSoup保持结构")
+                    # trafilatura返回纯文本,我们需要重新解析为HTML结构
+                    # 为了保持结构化信息,我们使用BeautifulSoup降级方案
+                    logger.debug("trafilatura提取成功,但使用BeautifulSoup保持结构")
             except Exception as e:
-                logger.warning(f"trafilatura提取失败，尝试其他方法: {e}")
+                logger.warning(f"trafilatura提取失败,尝试其他方法: {e}")
 
-        # 使用readability-lxml（如果可用且启用）
+        # 使用readability-lxml(如果可用且启用)
         if self.use_readability and not self.use_trafilatura:
             try:
                 doc = ReadabilityDocument(html_content)
@@ -344,9 +345,9 @@ class HTMLParser:
                     # 使用提取的HTML片段创建新的soup
                     soup = BeautifulSoup(main_content_html, "html.parser")
             except Exception as e:
-                logger.warning(f"readability提取失败，使用完整HTML: {e}")
+                logger.warning(f"readability提取失败,使用完整HTML: {e}")
 
-        # 移除脚本、样式、导航、广告等无关内容
+        # 移除脚本,样式,导航,广告等无关内容
         for tag in soup.find_all(["script", "style", "nav", "header", "footer", "aside"]):
             tag.decompose()
 
@@ -354,7 +355,7 @@ class HTMLParser:
         for tag in soup.find_all(class_=re.compile(r"(ad|advertisement|sidebar|comment|footer|header|nav|menu)", re.I)):
             tag.decompose()
 
-        # 如果使用了readability或trafilatura，soup已经是清理后的内容
+        # 如果使用了readability或trafilatura,soup已经是清理后的内容
         # 否则尝试找到正文容器
         if not (self.use_readability or self.use_trafilatura):
             article = soup.find("article")
@@ -372,7 +373,7 @@ class HTMLParser:
         """
         从BeautifulSoup对象中提取结构化元素
 
-        遍历HTML DOM树，提取标题、段落、列表等结构化元素。
+        遍历HTML DOM树,提取标题,段落,列表等结构化元素.
 
         Args:
             soup: BeautifulSoup对象
@@ -461,7 +462,7 @@ class HTMLParser:
 
             # 表格处理
             elif tag_name == "table":
-                # 提取表格文本内容（简化处理）
+                # 提取表格文本内容(简化处理)
                 text = element.get_text(separator="\n", strip=True)
                 if text:
                     elements.append(
@@ -472,7 +473,7 @@ class HTMLParser:
                         )
                     )
 
-        # 如果没有提取到任何元素，降级为提取所有文本
+        # 如果没有提取到任何元素,降级为提取所有文本
         if not elements:
             text = root.get_text(separator="\n", strip=True)
             if text:
@@ -554,7 +555,7 @@ class HTMLParser:
             section_contexts: 章节上下文列表
 
         Returns:
-            SectionContext | None: 章节上下文，如果不存在则返回None
+            SectionContext | None: 章节上下文,如果不存在则返回None
         """
         # 找到所有标题元素及其对应的章节上下文
         heading_to_context: dict[int, SectionContext] = {}
@@ -598,7 +599,7 @@ class HTMLParser:
         nodes: list[Node] = []
 
         for element in elements:
-            # 跳过标题元素（标题信息已包含在章节上下文中）
+            # 跳过标题元素(标题信息已包含在章节上下文中)
             if element.element_type == HTMLElementType.HEADING:
                 continue
 
@@ -631,12 +632,12 @@ class HTMLParser:
 
             # 合并原始文档元数据
             if self.preserve_metadata and document_metadata:
-                # 保留原始元数据，但覆盖冲突字段
+                # 保留原始元数据,但覆盖冲突字段
                 for key, value in document_metadata.items():
                     if key not in node_metadata:
                         node_metadata[key] = value
 
-            # 创建LangChain Document（用于转换）
+            # 创建LangChain Document(用于转换)
             document = Document(
                 page_content=element.content,
                 metadata=node_metadata,

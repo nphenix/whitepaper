@@ -5,18 +5,18 @@
 """
 Document格式转换适配器
 
-该模块实现LangChain Document到LlamaIndex Node的转换适配器。
-遵循LangChain 1.0和LlamaIndex最佳实践，提供统一的格式转换接口。
+该模块实现LangChain Document到LlamaIndex Node的转换适配器.
+遵循LangChain 1.0和LlamaIndex最佳实践,提供统一的格式转换接口.
 
 参考最佳实践:
 - LangChain 1.0: 使用langchain_core.documents.Document作为标准文档格式
 - LlamaIndex: 使用llama_index.core.schema.Node作为节点格式
-- 保留完整的元数据信息，确保可追溯性
+- 保留完整的元数据信息,确保可追溯性
 """
 
 import hashlib
-import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 from langchain_core.documents import Document
@@ -26,28 +26,33 @@ from src.shared.utils.logging import get_logger
 logger = get_logger(__name__)
 
 try:
-    from llama_index.core.schema import Node, TextNode, NodeRelationship, RelatedNodeInfo
+    from llama_index.core.schema import (
+        Node,
+        NodeRelationship,
+        RelatedNodeInfo,
+        TextNode,
+    )
     LLAMA_INDEX_AVAILABLE = True
 except ImportError:
     logger.warning("LlamaIndex not available, Node conversion will be disabled")
     LLAMA_INDEX_AVAILABLE = False
-    # 定义占位符类型，避免类型检查错误
-    Node = Any
-    TextNode = Any
-    NodeRelationship = Any
-    RelatedNodeInfo = Any
+    # 定义占位符类型,避免类型检查错误
+    Node = Any  # type: ignore
+    TextNode = Any  # type: ignore
+    NodeRelationship = Any  # type: ignore
+    RelatedNodeInfo = Any  # type: ignore
 
 
 class LangChainDocumentToNodeConverter:
     """
     LangChain Document到LlamaIndex Node转换器
 
-    将langchain_core.documents.Document转换为llama_index.core.schema.Node，
-    保留完整的元数据信息，支持自定义节点ID生成策略。
+    将langchain_core.documents.Document转换为llama_index.core.schema.Node,
+    保留完整的元数据信息,支持自定义节点ID生成策略.
 
     功能特性:
     - 支持单个和批量转换
-    - 保留所有元数据信息（source、format、page、processed_at等）
+    - 保留所有元数据信息(source,format,page,processed_at等)
     - 支持自定义节点ID生成策略
     - 完善的错误处理和日志记录
     - 遵循LangChain 1.0和LlamaIndex最佳实践
@@ -69,9 +74,9 @@ class LangChainDocumentToNodeConverter:
         初始化转换器
 
         Args:
-            node_id_generator: 自定义节点ID生成函数，接受Document对象，返回节点ID字符串
-                              如果为None，则使用默认的UUID生成策略
-            preserve_metadata: 是否保留所有元数据，默认为True
+            node_id_generator: 自定义节点ID生成函数,接受Document对象,返回节点ID字符串
+                              如果为None,则使用默认的UUID生成策略
+            preserve_metadata: 是否保留所有元数据,默认为True
         """
         self.node_id_generator = node_id_generator or self._default_node_id_generator
         self.preserve_metadata = preserve_metadata
@@ -97,12 +102,12 @@ class LangChainDocumentToNodeConverter:
             ImportError: 如果LlamaIndex未安装
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
-                "LlamaIndex is not available. Please install llama-index package."
-            )
+            msg = "LlamaIndex is not available. Please install llama-index package."
+            raise ImportError(msg)
 
         if not isinstance(document, Document):
-            raise ValueError(f"Expected Document object, got {type(document)}")
+            msg = f"Expected Document object, got {type(document)}"
+            raise ValueError(msg)
 
         if not document.page_content:
             logger.warning("Document has empty page_content, creating node with empty text")
@@ -143,9 +148,8 @@ class LangChainDocumentToNodeConverter:
             ImportError: 如果LlamaIndex未安装
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
-                "LlamaIndex is not available. Please install llama-index package."
-            )
+            msg = "LlamaIndex is not available. Please install llama-index package."
+            raise ImportError(msg)
 
         if not documents:
             logger.warning("Empty documents list provided")
@@ -161,7 +165,7 @@ class LangChainDocumentToNodeConverter:
                     f"转换第 {i+1} 个Document时出错: {e}",
                     exc_info=True,
                 )
-                # 继续处理其他文档，不中断整个流程
+                # 继续处理其他文档,不中断整个流程
                 continue
 
         logger.info(f"成功转换 {len(nodes)}/{len(documents)} 个Document为Node")
@@ -189,7 +193,7 @@ class LangChainDocumentToNodeConverter:
         if "format" not in metadata:
             logger.warning("Document metadata缺少'format'字段")
 
-        # 保留所有原始元数据，不做过滤
+        # 保留所有原始元数据,不做过滤
         # LlamaIndex Node的metadata可以包含任意键值对
         return metadata
 
@@ -197,7 +201,7 @@ class LangChainDocumentToNodeConverter:
         """
         默认节点ID生成策略
 
-        使用UUID生成唯一ID，确保每个节点都有唯一的标识符。
+        使用UUID生成唯一ID,确保每个节点都有唯一的标识符.
 
         Args:
             document: LangChain Document对象
@@ -212,8 +216,8 @@ class LangChainDocumentToNodeConverter:
         """
         基于内容哈希的节点ID生成策略
 
-        根据文档内容和元数据生成哈希ID，相同内容的文档会生成相同的ID。
-        适用于需要去重的场景。
+        根据文档内容和元数据生成哈希ID,相同内容的文档会生成相同的ID.
+        适用于需要去重的场景.
 
         Args:
             document: LangChain Document对象
@@ -236,7 +240,7 @@ class LangChainDocumentToNodeConverter:
         """
         基于来源的节点ID生成策略
 
-        根据文档来源路径生成节点ID，适用于需要保持来源关联的场景。
+        根据文档来源路径生成节点ID,适用于需要保持来源关联的场景.
 
         Args:
             document: LangChain Document对象
@@ -246,10 +250,10 @@ class LangChainDocumentToNodeConverter:
         """
         source = document.metadata.get("source", "") if document.metadata else ""
         if not source:
-            # 如果没有source，回退到UUID
+            # 如果没有source,回退到UUID
             return str(uuid4())
 
-        # 从source路径生成ID（移除特殊字符，保留路径结构）
+        # 从source路径生成ID(移除特殊字符,保留路径结构)
         import re
         safe_source = re.sub(r"[^\w\-_./]", "_", source)
         # 添加UUID后缀确保唯一性

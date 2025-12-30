@@ -1,8 +1,8 @@
 """
 文档预处理日志配置模块
 
-统一接入项目的异常体系和日志体系,为预处理流程提供结构化日志配置。
-支持领域特定的日志格式、过滤器和处理器。
+统一接入项目的异常体系和日志体系,为预处理流程提供结构化日志配置.
+支持领域特定的日志格式,过滤器和处理器.
 
 生成命令: /speckit.implement T040
 生成时间: 2025-12-17
@@ -50,7 +50,7 @@ class PreprocessingStructuredFormatter(StructuredFormatter):
     def format(self, record: logging.LogRecord) -> str:
         """
         将预处理相关字段注入到 StructuredFormatter 使用的 extra_fields 中,
-        确保这些字段出现在最终的结构化日志里。
+        确保这些字段出现在最终的结构化日志里.
         """
         # 预处理特定字段列表
         preprocessing_fields = [
@@ -139,11 +139,11 @@ class PreprocessingJSONFormatter(JSONFormatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """
-        直接生成包含预处理字段的 JSON 日志。
+        直接生成包含预处理字段的 JSON 日志.
 
         测试期望可以通过 log_data['preprocessing_step'] 等顶层键
         访问预处理相关字段,因此这里不依赖父类的 fields 嵌套结构,
-        而是显式构造完整的 JSON 对象。
+        而是显式构造完整的 JSON 对象.
         """
         # 基础字段
         log_data: dict[str, Any] = {

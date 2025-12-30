@@ -5,12 +5,13 @@
 """
 输入验证函数模块
 
-提供各种输入验证函数, 包括数据格式验证、业务规则验证等。
-支持字符串、数字、邮箱、URL、文件路径等多种数据类型的验证。
+提供各种输入验证函数, 包括数据格式验证,业务规则验证等.
+支持字符串,数字,邮箱,URL,文件路径等多种数据类型的验证.
 """
 
 import json
 import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -356,6 +357,29 @@ def validate_regex_pattern(value: Any, pattern: str, flags: int = 0) -> dict[str
 
     except re.error as e:
         return {"valid": False, "error": f"正则表达式错误: {e!s}"}
+
+
+def validate_uuid(uuid_string: str) -> None:
+    """验证UUID格式并抛出异常
+
+    Args:
+        uuid_string: UUID字符串
+
+    Raises:
+        ValidationError: UUID格式无效时抛出
+    """
+    try:
+        uuid.UUID(uuid_string)
+    except (ValueError, TypeError) as e:
+        from shared.exceptions.base_exceptions import (
+            ValidationError as BaseValidationError,
+        )
+        msg = f"无效的UUID格式: {uuid_string}"
+        raise BaseValidationError(
+            msg,
+            field_name="uuid",
+            field_value=uuid_string,
+        ) from e
 
 
 def validate_business_rules(data: Any, rules: Any) -> dict[str, Any]:

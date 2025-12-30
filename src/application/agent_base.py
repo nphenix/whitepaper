@@ -7,7 +7,7 @@
 
 Agent基础框架
 
-基于LangChain 1.0的create_agent构建的基础Agent框架。
+基于LangChain 1.0的create_agent构建的基础Agent框架.
 遵循LangChain 1.0最佳实践:
 - 使用统一的create_agent接口
 - 支持结构化输出(response_format)
@@ -61,7 +61,7 @@ class AgentStatus(Enum):
 class AgentConfig(TypedDict, total=False):
     """Agent配置
 
-    使用TypedDict定义配置结构,total=False表示所有字段都是可选的。
+    使用TypedDict定义配置结构,total=False表示所有字段都是可选的.
     """
 
     agent_id: str
@@ -86,7 +86,7 @@ class AgentConfig(TypedDict, total=False):
     checkpoint_thread_id: str  # 线程ID,用于状态隔离
 
     # 结构化输出配置
-    response_format: type[Any] | None  # Pydantic模型、TypedDict或Dataclass
+    response_format: type[Any] | None  # Pydantic模型,TypedDict或Dataclass
 
     # 上下文模式配置
     context_schema: type[Any] | None  # 运行时上下文模式
@@ -114,7 +114,7 @@ class BaseAgent(ABC):
     6. 记忆管理(LangMem Tools)
     7. 错误处理和重试机制
 
-    完全基于LangChain 1.0的create_agent API实现,符合官方最佳实践。
+    完全基于LangChain 1.0的create_agent API实现,符合官方最佳实践.
     """
 
     def __init__(
@@ -175,9 +175,9 @@ class BaseAgent(ABC):
     def model(self) -> BaseLanguageModel:
         """获取LLM模型实例
 
-        必须从T009创建的llm_service获取, 不得直接创建。
-        模型配置通过统一的配置系统管理,符合LangChain 1.0最佳实践。
-        如果需要覆盖配置(如temperature),应通过运行时config参数实现。
+        必须从T009创建的llm_service获取, 不得直接创建.
+        模型配置通过统一的配置系统管理,符合LangChain 1.0最佳实践.
+        如果需要覆盖配置(如temperature),应通过运行时config参数实现.
         """
         if self._model is None:
             try:
@@ -217,15 +217,15 @@ class BaseAgent(ABC):
     def get_tools(self) -> list[BaseTool]:
         """获取Agent专用工具列表
 
-        子类必须实现此方法,返回Agent专用的工具列表。
+        子类必须实现此方法,返回Agent专用的工具列表.
         """
         raise NotImplementedError
 
     def _build_agent(self) -> Runnable:
         """构建Agent实例
 
-        使用LangChain 1.0的create_agent API创建Agent。
-        符合LangChain 1.0最佳实践,只传递支持的参数。
+        使用LangChain 1.0的create_agent API创建Agent.
+        符合LangChain 1.0最佳实践,只传递支持的参数.
         """
         try:
             # 获取工具列表(包含Agent专用工具和记忆工具)
@@ -298,7 +298,7 @@ class BaseAgent(ABC):
     def _build_middleware(self) -> list:
         """构建中间件列表
 
-        包括官方内置中间件和自定义中间件。
+        包括官方内置中间件和自定义中间件.
         中间件执行顺序(按照LangChain 1.0最佳实践):
         1. 日志记录中间件(最先执行,记录所有事件)
         2. 总结中间件(SummarizationMiddleware,在错误处理之前,防止token溢出)
@@ -379,12 +379,12 @@ class BaseAgent(ABC):
     def _get_system_message(self) -> str:
         """获取系统消息
 
-        子类可以重写此方法自定义系统消息。
+        子类可以重写此方法自定义系统消息.
         """
         return f"""
-        你是一个名为 {self.agent_name} 的智能Agent。
-        你的ID是 {self.agent_id},类型是 {self.agent_type}。
-        请使用你的工具来完成任务。
+        你是一个名为 {self.agent_name} 的智能Agent.
+        你的ID是 {self.agent_id},类型是 {self.agent_type}.
+        请使用你的工具来完成任务.
         """
 
     def get_state(self, thread_id: str | None = None) -> dict[str, Any]:

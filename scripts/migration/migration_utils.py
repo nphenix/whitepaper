@@ -5,7 +5,7 @@
 """
 数据库迁移工具模块
 
-提供数据库迁移的核心功能,包括迁移版本管理、SQL执行、回滚等。
+提供数据库迁移的核心功能,包括迁移版本管理,SQL执行,回滚等.
 """
 
 import json
@@ -24,7 +24,7 @@ logger = get_logger()
 class Migration:
     """迁移类
 
-    表示单个数据库迁移操作。
+    表示单个数据库迁移操作.
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class Migration:
 class MigrationManager:
     """迁移管理器
 
-    管理数据库迁移的执行、版本控制和回滚。
+    管理数据库迁移的执行,版本控制和回滚.
     """
 
     def __init__(self, db_path: str | Path):

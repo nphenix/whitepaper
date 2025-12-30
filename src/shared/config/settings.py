@@ -1,6 +1,6 @@
 """配置管理模型
 
-使用 Pydantic 定义所有配置项的模型,支持环境变量注入和验证。
+使用 Pydantic 定义所有配置项的模型,支持环境变量注入和验证.
 """
 
 from pathlib import Path
@@ -273,8 +273,8 @@ class ChartToJsonLLMConfig(BaseModel):
 class SummarizationMiddlewareConfig(BaseModel):
     """总结中间件配置
 
-    用于配置SummarizationMiddleware的阈值和行为。
-    支持通过环境变量覆盖,默认开启以保护长文场景。
+    用于配置SummarizationMiddleware的阈值和行为.
+    支持通过环境变量覆盖,默认开启以保护长文场景.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -373,7 +373,8 @@ class DocumentConfig(BaseModel):
 
     # 上传配置
     max_upload_size: int = Field(
-        default=10485760, gt=0, description="最大上传大小(字节)"
+        # 默认提高到 50MB：集成测试/真实白皮书 PDF 常见 20-40MB，10MB 过小会导致前端流程降级
+        default=52428800, gt=0, description="最大上传大小(字节)"
     )
     allowed_extensions: list[str] = Field(
         default=["pdf", "docx", "html", "txt", "md"], description="允许的文件扩展名"
@@ -527,7 +528,7 @@ class PerformanceConfig(BaseModel):
 class AppConfig(BaseSettings):
     """应用主配置
 
-    整合所有配置项,支持环境变量注入和验证。
+    整合所有配置项,支持环境变量注入和验证.
     """
 
     # 环境配置
@@ -652,8 +653,8 @@ class AppConfig(BaseSettings):
     def validate_llm_config(cls, v: Any, info: ValidationInfo) -> dict[str, Any]:
         """验证 LLM 配置
 
-        从环境变量读取配置,不提供硬编码的默认值。
-        所有配置必须通过 .env 文件或环境变量提供。
+        从环境变量读取配置,不提供硬编码的默认值.
+        所有配置必须通过 .env 文件或环境变量提供.
         """
         import os
 
@@ -765,6 +766,35 @@ class AppConfig(BaseSettings):
         return v or {}
 
 
+def _find_project_root(start_path: Path | None = None) -> Path:
+    """查找项目根目录
+    
+    通过查找包含 pyproject.toml 或 .env.example 的目录来确定项目根目录
+    
+    Args:
+        start_path: 起始搜索路径,如果为 None 则从当前文件所在目录开始
+        
+    Returns:
+        项目根目录路径
+    """
+    if start_path is None:
+        # 从当前文件所在目录开始查找
+        start_path = Path(__file__).parent.parent.parent.parent
+    
+    current = Path(start_path).resolve()
+    
+    # 标记文件列表,用于识别项目根目录
+    markers = ["pyproject.toml", ".env.example", "requirements.txt"]
+    
+    # 向上查找,直到找到包含标记文件的目录
+    for parent in [current] + list(current.parents):
+        if any((parent / marker).exists() for marker in markers):
+            return parent
+    
+    # 如果没找到,返回当前路径
+    return current
+
+
 # 全局配置实例
 def load_config(env_file: str | None = None) -> AppConfig:
     """加载配置
@@ -784,8 +814,9 @@ def load_config(env_file: str | None = None) -> AppConfig:
     if env_file:
         load_dotenv(env_file, override=True)
     else:
-        # 尝试加载项目根目录的 .env 文件
-        env_path = Path(".env")
+        # 查找项目根目录并加载 .env 文件
+        project_root = _find_project_root()
+        env_path = project_root / ".env"
         if env_path.exists():
             load_dotenv(env_path, override=True)
 

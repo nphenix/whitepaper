@@ -1,16 +1,17 @@
 """
 基于LLM的广告清洗器
 
-使用LangChain 1.0的Agent框架和中间件机制实现智能广告清洗。
-支持动态模型调用、结构化输出、错误处理和重试机制。
+使用LangChain 1.0的Agent框架和中间件机制实现智能广告清洗.
+支持动态模型调用,结构化输出,错误处理和重试机制.
 
-本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符。
+本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符.
 
 生成命令: /speckit.implement T030A-LLM-AdRemover
 生成时间: 2025-12-14
 来源: specs/001-multi-agent-doc-system/tasks.md
 """
 
+import re
 import time
 
 from langchain_core.documents import Document
@@ -61,9 +62,9 @@ class LLMAdRemover:
     2. 重试机制
     3. 批量处理
 
-    必须从T009创建的llm_service获取模型实例。
+    必须从T009创建的llm_service获取模型实例.
 
-    注意:不使用LangChain的Agent框架,直接调用模型以提高兼容性。
+    注意:不使用LangChain的Agent框架,直接调用模型以提高兼容性.
     """
 
     def __init__(
@@ -191,8 +192,8 @@ class LLMAdRemover:
     ) -> str:
         """使用流式响应调用模型,带重试机制
 
-        使用 stream() 方法代替 invoke(),避免长时间等待导致的超时问题。
-        流式响应会持续接收数据块,只要服务器在发送数据就不会超时。
+        使用 stream() 方法代替 invoke(),避免长时间等待导致的超时问题.
+        流式响应会持续接收数据块,只要服务器在发送数据就不会超时.
 
         Args:
             messages: 消息列表
@@ -205,30 +206,69 @@ class LLMAdRemover:
 
         def _stream_model_call() -> str:
             """执行流式模型调用"""
+            import time
             full_response = ""
             chunk_count = 0
+            last_chunk_time = time.time()
 
-            logger.debug("开始流式调用模型...")
+            logger.info("开始流式调用模型...")
+            stream_start_time = time.time()
+            
+            # 获取流式迭代器
+            logger.debug("正在获取流式响应迭代器...")
+            stream_iter = model.stream(messages)
+            logger.info("流式响应迭代器已获取,开始迭代数据块...")
 
-            for chunk in model.stream(messages):
-                # AIMessageChunk 对象有 content 属性
-                if hasattr(chunk, "content") and chunk.content:
-                    full_response += chunk.content
-                    chunk_count += 1
+            try:
+                for chunk in stream_iter:
+                    current_time = time.time()
+                    
+                    # AIMessageChunk 对象有 content 属性
+                    if hasattr(chunk, "content") and chunk.content:
+                        full_response += chunk.content
+                        chunk_count += 1
+                        last_chunk_time = current_time
 
-                    # 每100个chunk记录一次进度
-                    if chunk_count % 100 == 0:
-                        logger.debug(
-                            "已接收 %s 个数据块,当前响应长度: %s 字符",
+                        # 每100个chunk记录一次进度
+                        if chunk_count % 100 == 0:
+                            elapsed = current_time - stream_start_time
+                            logger.info(
+                                "已接收 %s 个数据块,当前响应长度: %s 字符,耗时: %.1f秒",
+                                chunk_count,
+                                len(full_response),
+                                elapsed,
+                            )
+                    else:
+                        # 即使没有content，也更新last_chunk_time，表示连接还在活跃
+                        last_chunk_time = current_time
+                    
+                    # 检查是否长时间没有收到数据块（超过60秒没有数据，可能是连接问题）
+                    if current_time - last_chunk_time > 60:
+                        logger.warning(
+                            "流式响应超过60秒未收到数据块,可能连接异常.已接收: %s 块,长度: %s 字符",
                             chunk_count,
                             len(full_response),
                         )
-
-            logger.debug(
-                "流式响应完成,共接收 %s 个数据块,响应长度: %s 字符",
-                chunk_count,
-                len(full_response),
-            )
+                        
+                elapsed = time.time() - stream_start_time
+                logger.info(
+                    "流式响应完成,共接收 %s 个数据块,响应长度: %s 字符,总耗时: %.1f秒",
+                    chunk_count,
+                    len(full_response),
+                    elapsed,
+                )
+            except Exception as e:
+                elapsed = time.time() - stream_start_time
+                logger.error(
+                    "流式响应处理异常 (已处理 %s 块,长度: %s 字符,耗时: %.1f秒): %s",
+                    chunk_count,
+                    len(full_response),
+                    elapsed,
+                    e,
+                    exc_info=True,
+                )
+                raise
+                
             return full_response
 
         return self.retry_handler.execute_with_retry(
@@ -242,48 +282,55 @@ class LLMAdRemover:
         Returns:
             系统提示词字符串
         """
-        return """你是一个专业的文档清洗助手,专门负责清理Markdown文档中的非正文内容。
+        return """你是一个专业的文档清洗助手,专门负责清理Markdown文档中的非正文内容.
 
 **请删除以下内容**:
-1. 广告内容(推广、营销、购买链接等)
-2. 目录页和章节索引页(Table of Contents、图表目录、章节目录等)
-   - **特别注意**:只有章节标题、没有正文内容的章节(如目录页、章节索引页)应该被删除
+1. 广告内容,包括但不限于:
+   - 产品推广、营销信息、宣传内容
+   - 购买链接、订购信息、价格信息
+   - 联系方式(联系电话、邮箱地址、官网链接)
+   - 二维码、促销信息、优惠活动
+   - 任何带有商业推广性质的文本、链接或图片
+   - 网址(www.xxx.com、http://、https://等)
+   - 邮箱地址(xxx@xxx.com等)
+2. 目录页和章节索引页(Table of Contents,图表目录,章节目录等)
+   - **特别注意**:只有章节标题,没有正文内容的章节(如目录页,章节索引页)应该被删除
    - 保留正文中的章节标题和结构,但删除纯目录页
    - 如果某个章节只包含章节标题列表,没有正文内容,应该被识别为目录页并删除
-3. 封面图片(通常位于文档开头、标题前的装饰性图片)
-4. 文档结尾的装饰性图片(如作者照片、版权页图片、封底图片等)
+3. 封面图片(通常位于文档开头,标题前的装饰性图片)
+4. 文档结尾的装饰性图片(如作者照片,版权页图片,封底图片等)
    - **特别注意**:文档开头和结尾的装饰性图片都应该被删除
-   - 包括但不限于:封面图、作者照片、版权页图片、封底图片等
-5. 版权声明、页眉页脚信息
-6. 出版信息(doi、中图分类号、文献标志码、文章编号等期刊元数据)
-7. 作者简介、通讯作者信息
-8. 收稿日期、修回日期等日期信息
-9. 基金项目、资助信息
+   - 包括但不限于:封面图,作者照片,版权页图片,封底图片等
+5. 版权声明,页眉页脚信息
+6. 出版信息(doi,中图分类号,文献标志码,文章编号等期刊元数据)
+7. 作者简介,通讯作者信息
+8. 收稿日期,修回日期等日期信息
+9. 基金项目,资助信息
 10. 无实质内容的装饰性图片(包括文档开头和结尾的装饰性图片)
-11. 中英双语重复内容中的英文部分(如:中英文标题重复只保留中文标题,中英文摘要重复只保留中文摘要,图表标题的中英双语只保留中文标题)。注意:参考文献中的英文、正文引用的英文术语或文献应保留
+11. 中英双语重复内容中的英文部分(如:中英文标题重复只保留中文标题,中英文摘要重复只保留中文摘要,图表标题的中英双语只保留中文标题).注意:参考文献中的英文,正文引用的英文术语或文献应保留
 
 **必须保留的内容**:
-- 正文内容(包括摘要、关键词、正文章节、结论、参考文献)
-- 正文中的图片(图表、数据图、示意图等有实际内容的图片)
+- 正文内容(包括摘要,关键词,正文章节,结论,参考文献)
+- 正文中的图片(图表,数据图,示意图等有实际内容的图片)
 - 公式和表格
 - 章节标题和结构(但删除纯目录页)
 
 **图片判断规则**:
-- **删除**:文档开头和结尾的装饰性图片(封面、作者照片、版权页等)
+- **删除**:文档开头和结尾的装饰性图片(封面,作者照片,版权页等)
 - **删除**:无实质内容的装饰性图片
-- **保留**:正文中的图表、数据图、示意图等有实际内容的图片
+- **保留**:正文中的图表,数据图,示意图等有实际内容的图片
 - **保留**:所有图片链接信息(`![](images/xxx.jpg)`格式),即使图片本身被删除,链接信息也要保留
 
 **输出要求**:
 - 直接输出清洗后的Markdown文档
-- 不要添加任何说明、注释或解释
-- 保持文档格式完整、逻辑连贯"""
+- 不要添加任何说明,注释或解释
+- 保持文档格式完整,逻辑连贯"""
 
     def _split_by_paragraphs(self, content: str, max_size_kb: int = 96) -> list[str]:
         """按段落将文档内容分段
 
-        将Markdown文档按段落(空行分隔)分成多个段,每段不超过指定大小(KB)。
-        尽量保持段落的完整性,不会在段落中间切断。
+        将Markdown文档按段落(空行分隔)分成多个段,每段不超过指定大小(KB).
+        尽量保持段落的完整性,不会在段落中间切断.
 
         Args:
             content: 待分段的Markdown文档内容
@@ -389,7 +436,7 @@ class LLMAdRemover:
     ) -> str:
         """清洗单个文档段
 
-        直接调用模型进行清洗,不使用Agent框架,提高兼容性。
+        直接调用模型进行清洗,不使用Agent框架,提高兼容性.
 
         Args:
             segment: 待清洗的文档段
@@ -411,9 +458,27 @@ class LLMAdRemover:
         system_message = SystemMessage(content=self._get_system_message())
 
         if total_segments == 1:
-            user_content = f"请清洗以下Markdown文档中的广告内容,直接返回清洗后的完整Markdown文档:\n\n{segment}"
+            user_content = f"""请严格按照系统提示的要求清洗以下Markdown文档,删除所有广告内容、目录页、装饰性图片等非正文内容,直接返回清洗后的完整Markdown文档:
+
+{segment}
+
+请确保:
+1. 完全删除所有广告、推广、营销内容(包括链接、联系方式、价格信息等)
+2. 删除目录页和章节索引页
+3. 删除装饰性图片,但保留正文中的图表和数据图
+4. 保留所有正文内容、章节结构和有意义的图片链接
+5. 不要添加任何说明或解释,只输出清洗后的Markdown文档"""
         else:
-            user_content = f"请清洗以下Markdown文档片段中的广告内容(这是文档的第 {segment_index + 1}/{total_segments} 段),直接返回清洗后的内容:\n\n{segment}"
+            user_content = f"""请严格按照系统提示的要求清洗以下Markdown文档片段中的广告内容(这是文档的第 {segment_index + 1}/{total_segments} 段),直接返回清洗后的内容:
+
+{segment}
+
+请确保:
+1. 完全删除所有广告、推广、营销内容(包括链接、联系方式、价格信息等)
+2. 删除目录页和章节索引页
+3. 删除装饰性图片,但保留正文中的图表和数据图
+4. 保留所有正文内容、章节结构和有意义的图片链接
+5. 不要添加任何说明或解释,只输出清洗后的Markdown文档"""
 
         user_message = HumanMessage(content=user_content)
         messages = [system_message, user_message]
@@ -466,7 +531,7 @@ class LLMAdRemover:
         numbers = re.findall(r"\d+", text)
         number_tokens = len(numbers) * 0.8
 
-        # 其他字符(空格、标点等)
+        # 其他字符(空格,标点等)
         other_chars = (
             len(text)
             - len(chinese_chars)
@@ -488,7 +553,7 @@ class LLMAdRemover:
     def _split_paragraph_by_sentences(self, paragraph: str) -> list[str]:
         """将段落按句子分割
 
-        使用中文和英文的句子结束符来分割句子,保持语义完整性。
+        使用中文和英文的句子结束符来分割句子,保持语义完整性.
 
         Args:
             paragraph: 待分割的段落
@@ -499,9 +564,9 @@ class LLMAdRemover:
         import re
 
         # 中文和英文的句子结束符
-        # 包括:。!?;\n(用于Markdown中的换行)
+        # 包括:.!?;\n(用于Markdown中的换行)
         # 注意:保留结束符在句子中
-        sentence_endings = r"([。!?;\n]+)"
+        sentence_endings = r"([.!?;\n]+)"
 
         # 分割句子,但保留分隔符
         parts = re.split(sentence_endings, paragraph)
@@ -534,7 +599,7 @@ class LLMAdRemover:
 
         使用改进的token计算,添加安全边界,优先保持段落和句子完整性
 
-        将Markdown文档分成多个段,每段内容不超过指定的token数量。
+        将Markdown文档分成多个段,每段内容不超过指定的token数量.
         分段策略(按优先级):
         1. 优先按段落分段(保持段落完整性)
         2. 如果单个段落超过限制,按句子分割(保持句子完整性)
@@ -692,8 +757,8 @@ class LLMAdRemover:
     def _calculate_dynamic_max_tokens(self, estimated_input_tokens: int) -> int:
         """动态计算max_tokens
 
-        根据估算的输入token数,动态计算可用的输出token数。
-        确保 input_tokens + max_tokens <= context_window。
+        根据估算的输入token数,动态计算可用的输出token数.
+        确保 input_tokens + max_tokens <= context_window.
 
         Args:
             estimated_input_tokens: 估算的输入token数
@@ -869,12 +934,106 @@ class LLMAdRemover:
 
         return segments
 
+    def _post_process_cleaned_markdown(self, markdown: str) -> str:
+        """对 LLM 清洗后的 Markdown 做一层确定性的“广告/页脚”后处理。
+
+        目标：解决 LLM 偶尔漏删的尾部信息（联系方式/公众号/扫码/免责声明等），确保下游索引不被污染。
+
+        策略（尽量保守）：
+        - **尾部截断**：如果在文档后 40% 位置出现明显的尾部标记（如“版权与免责声明/扫码领取/公众号/如需进一步信息”），则从该处截断到末尾。
+        - **行级删除**：删除明显的联系方式行（电话/邮箱/网址），以及与“公众号/扫码/服务号/二维码”等关键词相邻的二维码图片行。
+        """
+        if not markdown or not markdown.strip():
+            return markdown
+
+        lines = markdown.splitlines()
+        n = len(lines)
+        if n == 0:
+            return markdown
+
+        # ---------- 1) 尾部截断（只在后 40% 区间触发，避免误删正文） ----------
+        tail_markers = [
+            "版权与免责声明",
+            "版权声明",
+            "免责声明",
+            "扫码领取",
+            "扫码获取",
+            "如需进一步信息",
+            "白皮书相关请联系",
+            "联系邮箱",
+            "EESA公众号",
+            "PwC公众号",
+            "服务号",
+            "公众号",
+            "二维码",
+        ]
+
+        start_search = int(n * 0.6)
+        cut_idx: int | None = None
+        for i in range(start_search, n):
+            s = (lines[i] or "").strip()
+            if not s:
+                continue
+            if any(m in s for m in tail_markers):
+                cut_idx = i
+                break
+
+        if cut_idx is not None:
+            # 向上吞掉空行
+            j = cut_idx
+            while j > 0 and not (lines[j - 1] or "").strip():
+                j -= 1
+            lines = lines[:j]
+            n = len(lines)
+
+        # ---------- 2) 行级剔除（联系方式/网址/二维码段） ----------
+        email_re = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+        url_re = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
+        image_md_re = re.compile(r"^!\[.*?\]\(.*?\)$")
+
+        def is_contact_line(s: str) -> bool:
+            if not s:
+                return False
+            s2 = s.strip()
+            if email_re.search(s2) or url_re.search(s2):
+                return True
+            # “电话：xxx” 等
+            if s2.startswith(("电话", "Tel", "TEL", "Email", "E-mail", "邮箱", "联系")):
+                return True
+            if "电话" in s2 and ("：" in s2 or ":" in s2):
+                return True
+            if "邮箱" in s2 and ("：" in s2 or ":" in s2):
+                return True
+            return False
+
+        qr_keywords = ["公众号", "服务号", "扫码", "二维码", "认证检测", "白皮书电子版"]
+
+        to_remove: set[int] = set()
+        for i in range(n):
+            s = (lines[i] or "").strip()
+            if not s:
+                continue
+
+            if is_contact_line(s) or any(k in s for k in qr_keywords):
+                to_remove.add(i)
+                # 同时移除相邻的二维码图片行
+                for j in (i - 1, i + 1, i - 2, i + 2):
+                    if 0 <= j < n and image_md_re.match((lines[j] or "").strip()):
+                        to_remove.add(j)
+
+        kept_lines = [line for idx, line in enumerate(lines) if idx not in to_remove]
+        # 末尾再去掉多余空行
+        while kept_lines and not (kept_lines[-1] or "").strip():
+            kept_lines.pop()
+
+        return "\n".join(kept_lines).strip() + "\n"
+
     def clean_document(self, document: Document) -> Document:
         """
         清洗单个LangChain Document对象
 
-        如果文档token数量超过限制,会自动按段落分段处理,然后合并结果。
-        KAT-Coder-Pro V1的最大上下文长度是256000 tokens,需要留出空间给输出。
+        如果文档token数量超过限制,会自动按段落分段处理,然后合并结果.
+        KAT-Coder-Pro V1的最大上下文长度是256000 tokens,需要留出空间给输出.
 
         Args:
             document: 待清洗的Document对象
@@ -946,7 +1105,7 @@ class LLMAdRemover:
                 doc_tokens,
             )
 
-            # 使用按章节分段的方法(优先按章节、段落分段,避免语义截断)
+            # 使用按章节分段的方法(优先按章节,段落分段,避免语义截断)
             segments = self._split_by_sections(doc_content, MAX_TOKENS_PER_SEGMENT)
 
             logger.info("文档分成 %s 段进行处理", len(segments))
@@ -1088,6 +1247,9 @@ class LLMAdRemover:
             cleaned_content = "\n\n".join(cleaned_segments)
             logger.info("分段处理完成,共处理 %s 个段落", len(segments))
 
+            # 二次后处理：补齐 LLM 漏删的尾部广告/页脚信息
+            cleaned_content = self._post_process_cleaned_markdown(cleaned_content)
+
             # 计算总体处理时间和缩减比例
             total_processing_time = time.time() - start_time
             original_length = len(doc_content)
@@ -1180,7 +1342,7 @@ class LLMAdRemover:
         """
         异步清洗单个LangChain Document对象
 
-        支持异步总结功能(如果启用)。
+        支持异步总结功能(如果启用).
 
         Args:
             document: 待清洗的Document对象
@@ -1216,8 +1378,8 @@ class LLMAdRemover:
             ):
                 # 可能是误传了文件路径
                 error_msg = (
-                    f"检测到可能的文件路径而非文档内容: {doc_content[:100]}。"
-                    "请确保传入的是Document对象的page_content,而不是文件路径。"
+                    f"检测到可能的文件路径而非文档内容: {doc_content[:100]}."
+                    "请确保传入的是Document对象的page_content,而不是文件路径."
                 )
                 raise ProcessingError(error_msg)
 
@@ -1259,7 +1421,7 @@ class LLMAdRemover:
         """清洗文档内容的内部方法(用于异步包装)
 
         注意:此方法假设文档内容已经过总结处理(如果需要),
-        直接进行清洗,不再进行总结。
+        直接进行清洗,不再进行总结.
 
         Args:
             document: 待清洗的Document对象(内容应已总结)
@@ -1284,6 +1446,7 @@ class LLMAdRemover:
 
             # 合并清洗后的内容
             cleaned_content = "\n".join(cleaned_segments)
+            cleaned_content = self._post_process_cleaned_markdown(cleaned_content)
 
             # 创建清洗后的Document对象
             cleaned_doc = Document(

@@ -5,17 +5,17 @@
 """
 数据库初始化脚本
 
-用于初始化数据库结构和管理数据库迁移。
+用于初始化数据库结构和管理数据库迁移.
 """
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 import typer
+from migration_utils import create_migration_manager
 from rich.console import Console
 from rich.table import Table
-
-from migration_utils import create_migration_manager
 
 # 初始化 Rich Console
 console = Console()
@@ -42,10 +42,10 @@ def get_default_db_path() -> Path:
 
 @app.command()
 def init(
-    db_path: str | None = typer.Option(
+    db_path: Optional[str] = typer.Option(
         None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
     ),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
@@ -60,7 +60,7 @@ def init(
 ):
     """初始化数据库
 
-    创建数据库结构并应用所有迁移。
+    创建数据库结构并应用所有迁移.
     """
     # 设置默认路径
     if db_path is None:
@@ -112,31 +112,31 @@ def init(
         console.print(f"已应用: {status['applied_count']}")
         console.print(f"待应用: {status['pending_count']}")
 
-        console.print("\n[green]✓ 数据库初始化成功完成[/green]")
+        console.print("\n[green][OK] 数据库初始化成功完成[/green]")
 
     except Exception as e:
-        console.print(f"[red]✗ 数据库初始化失败: {e}[/red]")
+        console.print(f"[red][FAIL] 数据库初始化失败: {e}[/red]")
         raise typer.Exit(1) from e
 
 
 @app.command()
 def migrate(
-    db_path: str | None = typer.Option(
+    db_path: Optional[str] = typer.Option(
         None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
     ),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
         help="迁移文件目录(默认为 scripts/migration/migrations)",
     ),
-    target_version: str | None = typer.Option(
+    target_version: Optional[str] = typer.Option(
         None, "--target", "-t", help="目标迁移版本(默认应用所有待应用迁移)"
     ),
 ):
     """应用数据库迁移
 
-    将数据库升级到最新版本或指定版本。
+    将数据库升级到最新版本或指定版本.
     """
     # 设置默认路径
     if db_path is None:
@@ -198,20 +198,83 @@ def migrate(
         console.print(f"已应用: {status_after['applied_count']}")
         console.print(f"待应用: {status_after['pending_count']}")
 
-        console.print("\n[green]✓ 数据库迁移成功完成[/green]")
+        console.print("\n[green][OK] 数据库迁移成功完成[/green]")
 
     except Exception as e:
-        console.print(f"[red]✗ 数据库迁移失败: {e}[/red]")
+        console.print(f"[red][FAIL] 数据库迁移失败: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@app.command("apply")
+def apply_one(
+    version: str = typer.Argument(..., help="要应用的迁移版本号(如 009)"),
+    db_path: Optional[str] = typer.Option(
+        None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
+    ),
+    migrations_dir: Optional[str] = typer.Option(
+        None,
+        "--migrations-dir",
+        "-m",
+        help="迁移文件目录(默认为 scripts/migration/migrations)",
+    ),
+):
+    """仅应用一个指定版本的迁移（跳过其他待应用迁移）
+
+    用途：当历史迁移存在冲突/分叉时（例如 001 与 005 都定义了 outlines 表），
+    直接 migrate 可能在早期版本失败导致无法补齐单个缺失表。本命令用于“点对点修复”。
+    """
+    if db_path is None:
+        db_path = str(get_default_db_path())
+
+    if migrations_dir is None:
+        migrations_dir = Path(__file__).parent / "migrations"
+
+    db_file = Path(db_path)
+    migrations_path = Path(migrations_dir)
+
+    console.print("[bold blue]应用单个迁移[/bold blue]")
+    console.print(f"数据库路径: {db_file}")
+    console.print(f"迁移目录: {migrations_path}")
+    console.print(f"目标版本: {version}")
+
+    if not db_file.exists():
+        console.print(f"[red]数据库文件不存在: {db_file}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        manager = create_migration_manager(db_file)
+        if migrations_path.exists():
+            manager.load_migrations_from_directory(migrations_path)
+            console.print(f"[green]已加载 {len(manager.migrations)} 个迁移文件[/green]")
+        else:
+            console.print(f"[red]迁移目录不存在: {migrations_path}[/red]")
+            raise typer.Exit(1)
+
+        if version not in manager.migrations:
+            console.print(f"[red]未找到迁移版本: {version}[/red]")
+            raise typer.Exit(1)
+
+        applied_versions = set(manager.get_applied_migrations())
+        if version in applied_versions:
+            console.print(f"[green][OK] 迁移 {version} 已应用，无需重复执行[/green]")
+            return
+
+        migration = manager.migrations[version]
+        manager.apply_migration(migration)
+        console.print(f"[green][OK] 成功应用迁移 {version}: {migration.description}[/green]")
+
+    except Exception as e:
+        console.print(f"[red][FAIL] 应用迁移失败: {e}[/red]")
         raise typer.Exit(1) from e
 
 
 @app.command()
 def rollback(
     version: str = typer.Argument(..., help="要回滚到的迁移版本"),
-    db_path: str | None = typer.Option(
+    db_path: Optional[str] = typer.Option(
         None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
     ),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
@@ -220,7 +283,7 @@ def rollback(
 ):
     """回滚数据库迁移
 
-    将数据库回滚到指定版本。
+    将数据库回滚到指定版本.
     """
     # 设置默认路径
     if db_path is None:
@@ -294,28 +357,28 @@ def rollback(
             migration = manager.migrations.get(v)
             if migration and manager.rollback_migration(migration):
                 rolled_back.append(v)
-                console.print(f"[green]✓ 已回滚 {v}: {migration.description}[/green]")
+                console.print(f"[green][OK] 已回滚 {v}: {migration.description}[/green]")
             else:
-                console.print(f"[red]✗ 回滚失败 {v}[/red]")
+                console.print(f"[red][FAIL] 回滚失败 {v}[/red]")
                 break
 
         if rolled_back:
-            console.print(f"\n[green]✓ 成功回滚 {len(rolled_back)} 个迁移[/green]")
+            console.print(f"\n[green][OK] 成功回滚 {len(rolled_back)} 个迁移[/green]")
         else:
-            console.print("\n[red]✗ 没有迁移被回滚[/red]")
+            console.print("\n[red][FAIL] 没有迁移被回滚[/red]")
             raise typer.Exit(1)
 
     except Exception as e:
-        console.print(f"[red]✗ 数据库回滚失败: {e}[/red]")
+        console.print(f"[red][FAIL] 数据库回滚失败: {e}[/red]")
         raise typer.Exit(1) from e
 
 
 @app.command()
 def status(
-    db_path: str | None = typer.Option(
+    db_path: Optional[str] = typer.Option(
         None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
     ),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
@@ -324,7 +387,7 @@ def status(
 ):
     """显示数据库迁移状态
 
-    查看当前数据库的迁移状态和待应用的迁移。
+    查看当前数据库的迁移状态和待应用的迁移.
     """
     # 设置默认路径
     if db_path is None:
@@ -371,7 +434,7 @@ def status(
 
         for version in sorted(manager.migrations.keys()):
             migration = manager.migrations[version]
-            status_text = "✓ 已应用" if version in applied_versions else "○ 待应用"
+            status_text = "[APPLIED]" if version in applied_versions else "[PENDING]"
             status_style = "green" if version in applied_versions else "yellow"
             dependencies = (
                 ", ".join(migration.dependencies) if migration.dependencies else "-"
@@ -393,13 +456,13 @@ def status(
         console.print(f"待应用: {status['pending_count']}")
 
     except Exception as e:
-        console.print(f"[red]✗ 获取状态失败: {e}[/red]")
+        console.print(f"[red][FAIL] 获取状态失败: {e}[/red]")
 
 
 @app.command()
 def create_migration(
     name: str = typer.Argument(..., help="迁移名称(描述性)"),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
@@ -408,7 +471,7 @@ def create_migration(
 ):
     """创建新的迁移文件
 
-    生成一个新的迁移文件模板。
+    生成一个新的迁移文件模板.
     """
     if migrations_dir is None:
         migrations_dir = Path(__file__).parent / "migrations"
@@ -460,7 +523,7 @@ def create_migration(
 
     filepath.write_text(template, encoding="utf-8")
 
-    console.print(f"[green]✓ 迁移文件已创建: {filepath}[/green]")
+    console.print(f"[green][OK] 迁移文件已创建: {filepath}[/green]")
     console.print(f"版本号: {version_str}")
     console.print("请编辑文件添加具体的SQL语句")
 
@@ -468,10 +531,10 @@ def create_migration(
 @app.command()
 def export_plan(
     output_file: str = typer.Argument(..., help="输出文件路径"),
-    db_path: str | None = typer.Option(
+    db_path: Optional[str] = typer.Option(
         None, "--db-path", "-d", help="数据库文件路径(默认使用配置文件中的路径)"
     ),
-    migrations_dir: str | None = typer.Option(
+    migrations_dir: Optional[str] = typer.Option(
         None,
         "--migrations-dir",
         "-m",
@@ -480,7 +543,7 @@ def export_plan(
 ):
     """导出迁移计划
 
-    将当前迁移状态导出为JSON文件。
+    将当前迁移状态导出为JSON文件.
     """
     # 设置默认路径
     if db_path is None:
@@ -509,10 +572,10 @@ def export_plan(
         # 导出计划
         manager.export_migration_plan(output_path)
 
-        console.print(f"[green]✓ 迁移计划已导出: {output_path}[/green]")
+        console.print(f"[green][OK] 迁移计划已导出: {output_path}[/green]")
 
     except Exception as e:
-        console.print(f"[red]✗ 导出失败: {e}[/red]")
+        console.print(f"[red][FAIL] 导出失败: {e}[/red]")
         raise typer.Exit(1) from e
 
 

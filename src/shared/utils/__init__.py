@@ -5,8 +5,8 @@
 """
 共享工具函数模块
 
-提供通用的工具函数, 包括日志记录、输入验证、辅助功能等。
-这些函数可以在项目的各个层中复用, 提高代码的一致性和可维护性。
+提供通用的工具函数, 包括日志记录,输入验证,辅助功能等.
+这些函数可以在项目的各个层中复用, 提高代码的一致性和可维护性.
 """
 
 # 导入日志相关
@@ -71,6 +71,7 @@ from .validators import (
     validate_regex_pattern,
     validate_string_length,
     validate_url,
+    validate_uuid,
 )
 
 # 版本信息
@@ -131,4 +132,5 @@ __all__ = [
     "validate_regex_pattern",
     "validate_string_length",
     "validate_url",
+    "validate_uuid",
 ]

@@ -1,7 +1,7 @@
 """配置验证器
 
-提供统一的配置验证逻辑,消除重复代码(DRY原则)。
-遵循单一职责原则(SOLID),专注于配置验证功能。
+提供统一的配置验证逻辑,消除重复代码(DRY原则).
+遵循单一职责原则(SOLID),专注于配置验证功能.
 """
 
 import os
@@ -13,7 +13,7 @@ from ..exceptions.base_exceptions import ValidationError
 class ConfigValidator:
     """配置验证器
 
-    提供统一的配置验证方法,消除重复的验证逻辑。
+    提供统一的配置验证方法,消除重复的验证逻辑.
     """
 
     @staticmethod
@@ -37,8 +37,8 @@ class ConfigValidator:
         ]
         if missing_keys:
             error_msg = (
-                f"{config_source}缺少必需配置项: {', '.join(missing_keys)}。"
-                f"请在 .env 文件中配置这些项。"
+                f"{config_source}缺少必需配置项: {', '.join(missing_keys)}."
+                f"请在 .env 文件中配置这些项."
             )
             raise ValidationError(error_msg, field_name="config")
 
@@ -96,7 +96,7 @@ class ConfigValidator:
             config_dict: 配置字典
 
         Returns:
-            基础配置字典(包含temperature、max_tokens、timeout)
+            基础配置字典(包含temperature,max_tokens,timeout)
 
         Raises:
             ValidationError: 如果必需配置缺失

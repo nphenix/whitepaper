@@ -5,14 +5,14 @@
 """
 Markdown解析器
 
-该模块实现Markdown解析器，从阶段3预处理结果读取Markdown文档，
-提取结构化信息（章节、段落、标题层次、列表、表格等），
-并转换为LlamaIndex Node对象列表。
+该模块实现Markdown解析器,从阶段3预处理结果读取Markdown文档,
+提取结构化信息(章节,段落,标题层次,列表,表格等),
+并转换为LlamaIndex Node对象列表.
 
 参考LlamaIndex最佳实践:
 - 使用llama_index.core.schema.Node作为节点格式
-- 保留完整的元数据信息，包括章节路径、结构信息等
-- 支持结构化检索（章节路径、文档层级）
+- 保留完整的元数据信息,包括章节路径,结构信息等
+- 支持结构化检索(章节路径,文档层级)
 - 关联图片和图表JSON资源信息
 
 参考文档:
@@ -20,13 +20,9 @@ Markdown解析器
 - Markdown解析: https://python-markdown.github.io/
 """
 
-import json
-import logging
 import re
-from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 from langchain_core.documents import Document
@@ -43,12 +39,11 @@ logger = get_logger(__name__)
 
 try:
     import markdown
-    from markdown.extensions import tables, codehilite, fenced_code
     MARKDOWN_AVAILABLE = True
 except ImportError:
     logger.warning("markdown library not available, Markdown parsing will be disabled")
     MARKDOWN_AVAILABLE = False
-    markdown = None  # type: ignore
+    markdown = None
 
 try:
     from llama_index.core.schema import Node, TextNode
@@ -56,8 +51,8 @@ try:
 except ImportError:
     logger.warning("LlamaIndex not available, Node creation will be disabled")
     LLAMA_INDEX_AVAILABLE = False
-    Node = Any
-    TextNode = Any
+    Node: type[Any] = Any  # type: ignore
+    TextNode: type[Any] = Any  # type: ignore
 
 
 class ElementType(Enum):
@@ -88,7 +83,7 @@ class MarkdownElement:
 @dataclass
 class SectionContext:
     """章节上下文数据类"""
-    path: str  # 章节路径，如 "1.2.3"
+    path: str  # 章节路径,如 "1.2.3"
     title: str  # 章节标题
     level: int  # 标题级别
     parent_path: str | None = None  # 父章节路径
@@ -98,13 +93,13 @@ class MarkdownParser:
     """
     Markdown解析器
 
-    解析Markdown内容，提取结构化信息，并转换为LlamaIndex Node对象列表。
-    支持提取标题层次、段落、列表、表格、代码块等结构信息。
+    解析Markdown内容,提取结构化信息,并转换为LlamaIndex Node对象列表.
+    支持提取标题层次,段落,列表,表格,代码块等结构信息.
 
     功能特性:
-    - 解析Markdown文档，提取结构化元素
-    - 根据标题层次自动生成章节路径（如"1.2.3"）
-    - 提取段落、列表、表格、代码块等元素
+    - 解析Markdown文档,提取结构化元素
+    - 根据标题层次自动生成章节路径(如"1.2.3")
+    - 提取段落,列表,表格,代码块等元素
     - 关联图片和图表JSON信息
     - 保留完整的元数据信息
     - 输出LlamaIndex Node对象列表
@@ -129,19 +124,17 @@ class MarkdownParser:
         初始化Markdown解析器
 
         Args:
-            include_images: 是否在元数据中包含图片信息，默认为True
-            include_charts: 是否在元数据中包含图表JSON信息，默认为True
-            preserve_metadata: 是否保留所有元数据，默认为True
+            include_images: 是否在元数据中包含图片信息,默认为True
+            include_charts: 是否在元数据中包含图表JSON信息,默认为True
+            preserve_metadata: 是否保留所有元数据,默认为True
         """
         if not MARKDOWN_AVAILABLE:
-            raise ImportError(
-                "markdown library is not available. Please install markdown package."
-            )
+            msg = "markdown library is not available. Please install markdown package."
+            raise ImportError(msg)
 
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
-                "LlamaIndex is not available. Please install llama-index package."
-            )
+            msg = "LlamaIndex is not available. Please install llama-index package."
+            raise ImportError(msg)
 
         self.include_images = include_images
         self.include_charts = include_charts
@@ -174,11 +167,11 @@ class MarkdownParser:
         """
         从预处理结果目录解析Markdown文档
 
-        使用T060预处理结果读取器读取文档，解析Markdown内容，
-        提取结构化信息，并转换为LlamaIndex Node对象列表。
+        使用T060预处理结果读取器读取文档,解析Markdown内容,
+        提取结构化信息,并转换为LlamaIndex Node对象列表.
 
         Args:
-            source: 预处理结果目录路径（data/cleaned/documents/{doc_name}/{extracted_dir}/）
+            source: 预处理结果目录路径(data/cleaned/documents/{doc_name}/{extracted_dir}/)
 
         Returns:
             List[Node]: LlamaIndex Node对象列表
@@ -223,11 +216,11 @@ class MarkdownParser:
         """
         解析单个Document对象
 
-        解析Document中的Markdown内容，提取结构化信息，
-        并根据结构信息创建多个Node对象。
+        解析Document中的Markdown内容,提取结构化信息,
+        并根据结构信息创建多个Node对象.
 
         Args:
-            document: LangChain Document对象（包含Markdown内容）
+            document: LangChain Document对象(包含Markdown内容)
 
         Returns:
             List[Node]: LlamaIndex Node对象列表
@@ -236,7 +229,8 @@ class MarkdownParser:
             ValueError: 如果Document无效
         """
         if not isinstance(document, Document):
-            raise ValueError(f"Expected Document object, got {type(document)}")
+            msg = f"Expected Document object, got {type(document)}"
+            raise ValueError(msg)
 
         markdown_content = document.page_content
         if not markdown_content:
@@ -348,7 +342,7 @@ class MarkdownParser:
                 )
                 continue
 
-            # 表格处理（Markdown表格以|开头）
+            # 表格处理(Markdown表格以|开头)
             if stripped.startswith("|") and "|" in stripped[1:]:
                 if current_element and current_element.element_type == ElementType.TABLE:
                     current_element.content += "\n" + line
@@ -423,7 +417,7 @@ class MarkdownParser:
             # 图片处理
             image_match = re.search(r"!\[([^\]]*)\]\(([^)]+)\)", line)
             if image_match:
-                # 图片作为内联元素，添加到当前段落或创建新段落
+                # 图片作为内联元素,添加到当前段落或创建新段落
                 if current_element and current_element.element_type == ElementType.PARAGRAPH:
                     current_element.content += "\n" + line
                     current_element.end_line = line_idx
@@ -464,7 +458,7 @@ class MarkdownParser:
                 current_element.content += "\n" + line
                 current_element.end_line = line_idx
             elif current_element and current_element.element_type == ElementType.TABLE:
-                # 表格结束，开始新段落
+                # 表格结束,开始新段落
                 elements.append(current_element)
                 current_element = MarkdownElement(
                     element_type=ElementType.PARAGRAPH,
@@ -473,7 +467,7 @@ class MarkdownParser:
                     end_line=line_idx,
                 )
             else:
-                # 结束列表，开始新段落
+                # 结束列表,开始新段落
                 if current_element and current_element.element_type == ElementType.LIST_ITEM:
                     current_element.content = "\n".join(current_list_items)
                     elements.append(current_element)
@@ -569,12 +563,12 @@ class MarkdownParser:
         获取指定行号对应的章节上下文
 
         Args:
-            line_number: 行号（0-based）
+            line_number: 行号(0-based)
             elements: Markdown元素列表
             section_contexts: 章节上下文列表
 
         Returns:
-            SectionContext | None: 章节上下文，如果不存在则返回None
+            SectionContext | None: 章节上下文,如果不存在则返回None
         """
         # 找到所有标题元素及其对应的章节上下文
         heading_to_context: dict[int, SectionContext] = {}
@@ -615,10 +609,9 @@ class MarkdownParser:
             List[Node]: LlamaIndex Node对象列表
         """
         nodes: list[Node] = []
-        section_idx = 0
 
         for element in elements:
-            # 跳过标题元素（标题信息已包含在章节上下文中）
+            # 跳过标题元素(标题信息已包含在章节上下文中)
             if element.element_type == ElementType.HEADING:
                 continue
 
@@ -655,19 +648,19 @@ class MarkdownParser:
 
             # 合并原始文档元数据
             if self.preserve_metadata and document_metadata:
-                # 保留原始元数据，但覆盖冲突字段
+                # 保留原始元数据,但覆盖冲突字段
                 for key, value in document_metadata.items():
                     if key not in node_metadata:
                         node_metadata[key] = value
 
-            # 特别处理图片和图表信息（确保关联资源信息）
+            # 特别处理图片和图表信息(确保关联资源信息)
             if self.include_images and "images" in document_metadata:
                 node_metadata["images"] = document_metadata["images"]
 
             if self.include_charts and "charts" in document_metadata:
                 node_metadata["charts"] = document_metadata["charts"]
 
-            # 创建LangChain Document（用于转换）
+            # 创建LangChain Document(用于转换)
             document = Document(
                 page_content=element.content,
                 metadata=node_metadata,
@@ -692,7 +685,7 @@ class MarkdownParser:
         metadata: dict[str, Any] | None = None,
     ) -> list[Node]:
         """
-        从Markdown字符串解析（便捷方法）
+        从Markdown字符串解析(便捷方法)
 
         Args:
             markdown_content: Markdown文档内容

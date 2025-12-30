@@ -5,30 +5,26 @@
 """
 BM25索引构建器实现 (T047)
 
-该模块实现BM25索引构建功能，使用rank-bm25库实现BM25算法，
-支持文档索引构建、查询、更新、删除等功能。
+该模块实现BM25索引构建功能,使用rank-bm25库实现BM25算法,
+支持文档索引构建,查询,更新,删除等功能.
 
 设计目标:
 - 使用rank-bm25库实现BM25算法
 - 支持从LlamaIndex Node对象构建BM25索引
-- 集成T052文档分块策略，支持分块后的文档索引
-- 支持元数据过滤和结构化查询（章节路径、文档层级等）
-- 实现索引的持久化存储（使用JSON格式）
-- 支持索引更新、删除、查询等完整功能
+- 集成T052文档分块策略,支持分块后的文档索引
+- 支持元数据过滤和结构化查询(章节路径,文档层级等)
+- 实现索引的持久化存储(使用JSON格式)
+- 支持索引更新,删除,查询等完整功能
 - 实现完善的错误处理和日志记录
 """
 
 from __future__ import annotations
 
-import json
-import math
 import os
 import pickle
-from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, cast
 
-from src.shared.exceptions.storage_exceptions import StorageError
 from src.shared.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -49,8 +45,8 @@ except ImportError:  # pragma: no cover - 仅在未安装 llama-index 时触发
     logger.warning(
         "LlamaIndex not available, BM25 index builder will have limited functionality"
     )
-    BaseNode = Any  # type: ignore[assignment, misc]
-    NodeWithScore = Any  # type: ignore[assignment, misc]
+    BaseNode = Any  # type: ignore
+    NodeWithScore = Any  # type: ignore
     LLAMA_INDEX_AVAILABLE = False
 
 
@@ -69,8 +65,8 @@ class BM25IndexBuilder:
     """
     BM25索引构建器
 
-    使用rank-bm25库实现BM25算法，支持文档索引构建、查询、更新、删除等功能。
-    索引数据可以持久化存储，支持增量更新。
+    使用rank-bm25库实现BM25算法,支持文档索引构建,查询,更新,删除等功能.
+    索引数据可以持久化存储,支持增量更新.
 
     典型用法:
         >>> builder = BM25IndexBuilder(index_path="./data/bm25_index.pkl")
@@ -90,19 +86,22 @@ class BM25IndexBuilder:
         初始化BM25索引构建器
 
         Args:
-            index_path: 索引文件路径，如果为None则不持久化
-            k1: BM25参数k1，控制词频饱和度
-            b: BM25参数b，控制文档长度归一化程度
-            epsilon: BM25参数epsilon，用于IDF下界
+            index_path: 索引文件路径,如果为None则不持久化
+            k1: BM25参数k1,控制词频饱和度
+            b: BM25参数b,控制文档长度归一化程度
+            epsilon: BM25参数epsilon,用于IDF下界
 
         Raises:
             ImportError: 如果rank-bm25未安装
             BM25IndexError: 如果初始化失败
         """
         if not BM25_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "rank-bm25 is not available. Please install rank-bm25 package to "
                 "use BM25IndexBuilder."
+            )
+            raise ImportError(
+                msg
             )
 
         self.index_path = index_path
@@ -136,7 +135,7 @@ class BM25IndexBuilder:
         """
         文本分词
 
-        使用改进的分词策略，支持中英文混合文本，并生成n-gram以提高匹配率。
+        使用改进的分词策略,支持中英文混合文本,并生成n-gram以提高匹配率.
 
         Args:
             text: 输入文本
@@ -144,51 +143,51 @@ class BM25IndexBuilder:
         Returns:
             分词结果列表
         """
-        # 简单的空格分词，可以根据需要替换为更复杂的分词器
-        # 例如：jieba分词（中文）或nltk（英文）
-        # 对于中文文本，我们需要更好的分词策略
+        # 简单的空格分词,可以根据需要替换为更复杂的分词器
+        # 例如:jieba分词(中文)或nltk(英文)
+        # 对于中文文本,我们需要更好的分词策略
         import re
-        
+
         # 移除标点符号并分词
         # 支持中英文混合文本
         # 将非字母数字字符替换为空格
-        text = re.sub(r'[^\w\s]', ' ', text.lower())
+        text = re.sub(r"[^\w\s]", " ", text.lower())
         # 分词并过滤空字符串
         tokens = [token for token in text.split() if token.strip()]
-        
-        # 如果没有分出任何词，尝试按字符分词
+
+        # 如果没有分出任何词,尝试按字符分词
         if not tokens and text:
-            # 对于中文，按字符分词
-            tokens = list(text.replace(' ', ''))
-        
-        # 对于中文文本，我们生成多种token以提高匹配率
+            # 对于中文,按字符分词
+            tokens = list(text.replace(" ", ""))
+
+        # 对于中文文本,我们生成多种token以提高匹配率
         all_tokens = []
         for token in tokens:
             # 添加原始token
             all_tokens.append(token)
-            
-            # 如果token长度大于1且包含中文字符，则按字符分词
-            if len(token) > 1 and any('\u4e00' <= char <= '\u9fff' for char in token):
+
+            # 如果token长度大于1且包含中文字符,则按字符分词
+            if len(token) > 1 and any("\u4e00" <= char <= "\u9fff" for char in token):
                 # 添加单个字符
                 all_tokens.extend(list(token))
-                
-                # 添加2-gram和3-gram（连续的2个和3个字符）
+
+                # 添加2-gram和3-gram(连续的2个和3个字符)
                 chars = list(token)
                 for i in range(len(chars) - 1):
                     # 2-gram
-                    all_tokens.append(''.join(chars[i:i+2]))
-                    
+                    all_tokens.append("".join(chars[i:i+2]))
+
                 for i in range(len(chars) - 2):
                     # 3-gram
-                    all_tokens.append(''.join(chars[i:i+3]))
-        
+                    all_tokens.append("".join(chars[i:i+3]))
+
         return all_tokens
 
     def _calculate_stats(self) -> None:
         """
         计算索引统计信息
 
-        计算词汇表大小和平均文档长度。
+        计算词汇表大小和平均文档长度.
         """
         if not self._document_texts:
             self._vocab_size = 0
@@ -221,7 +220,7 @@ class BM25IndexBuilder:
         """
         构建BM25索引
 
-        从节点列表构建BM25索引。
+        从节点列表构建BM25索引.
 
         Args:
             nodes: LlamaIndex Node列表
@@ -304,7 +303,7 @@ class BM25IndexBuilder:
             filters: 元数据过滤器
 
         Returns:
-            查询结果列表（NodeWithScore对象）
+            查询结果列表(NodeWithScore对象)
 
         Raises:
             BM25IndexError: 如果查询失败
@@ -314,7 +313,7 @@ class BM25IndexBuilder:
             raise ValueError(error_msg)
 
         if self._bm25_index is None:
-            error_msg = "索引未构建，请先调用build_index方法"
+            error_msg = "索引未构建,请先调用build_index方法"
             raise BM25IndexError(error_msg)
 
         try:
@@ -329,9 +328,9 @@ class BM25IndexBuilder:
             results: list[NodeWithScore] = []
             # 检查是否有正分数
             has_positive_scores = any(scores[i] > 0 for i in doc_indices[:top_k])
-            
+
             for doc_idx in doc_indices[:top_k]:
-                # 如果有正分数，只返回正分数的结果；否则返回top_k个结果（即使分数为0）
+                # 如果有正分数,只返回正分数的结果;否则返回top_k个结果(即使分数为0)
                 if has_positive_scores and scores[doc_idx] <= 0:
                     break
 
@@ -355,8 +354,8 @@ class BM25IndexBuilder:
                         score=float(scores[doc_idx]),
                     )
                 else:
-                    # 如果LlamaIndex不可用，返回简单的元组
-                    result = cast(NodeWithScore, (node, float(scores[doc_idx])))
+                    # 如果LlamaIndex不可用,返回简单的元组
+                    result = cast("NodeWithScore", (node, float(scores[doc_idx])))
 
                 results.append(result)
 
@@ -465,7 +464,7 @@ class BM25IndexBuilder:
 
             # 找出要删除的文档索引
             to_delete_indices = []
-            for i, (node, metadata) in enumerate(zip(self._documents, self._metadata)):
+            for i, (node, metadata) in enumerate(zip(self._documents, self._metadata, strict=True)):
                 should_delete = False
 
                 # 按节点ID删除
@@ -537,9 +536,9 @@ class BM25IndexBuilder:
 
         try:
             # 确保目录存在
-            index_dir = os.path.dirname(self.index_path)
+            index_dir = Path(self.index_path).parent
             if index_dir:
-                os.makedirs(index_dir, exist_ok=True)
+                index_dir.mkdir(parents=True, exist_ok=True)
 
             # 准备保存数据
             save_data = {
@@ -576,18 +575,38 @@ class BM25IndexBuilder:
 
         try:
             # 检查文件是否为空
-            if os.path.getsize(self.index_path) == 0:
-                logger.warning("BM25索引文件为空，跳过加载: path=%s", self.index_path)
+            if Path(self.index_path).stat().st_size == 0:
+                logger.warning("BM25索引文件为空,跳过加载: path=%s", self.index_path)
                 return
 
             # 从文件加载数据
             with open(self.index_path, "rb") as f:
                 try:
-                    save_data = pickle.load(f)
-                except (EOFError, pickle.UnpicklingError) as e:
-                    # 文件损坏或为空，记录警告并跳过加载
+                    # 使用更安全的反序列化方式
+                    import json
+                    # 尝试JSON格式
+                    try:
+                        save_data = json.load(f)
+                    except json.JSONDecodeError:
+                        # 回退到pickle,但添加更多安全检查
+                        f.seek(0)
+                        # 使用更安全的pickle加载方式,限制可执行的对象类型
+                        import pickle
+
+                        class SafeUnpickler(pickle.Unpickler):
+                            def find_class(self, module: str, name: str) -> Any:
+                                # 只允许特定的安全模块和类
+                                if module in ["builtins", "collections", "typing"]:
+                                    return super().find_class(module, name)
+                                error_msg = f"Unsafe to load: {module}.{name}"
+                                raise pickle.UnpicklingError(error_msg)
+
+                        safe_unpickler = SafeUnpickler(f)
+                        save_data = safe_unpickler.load()
+                except (EOFError, pickle.UnpicklingError, json.JSONDecodeError) as e:
+                    # 文件损坏或为空,记录警告并跳过加载
                     logger.warning(
-                        "BM25索引文件损坏或格式不正确，跳过加载: path=%s, error=%s",
+                        "BM25索引文件损坏或格式不正确,跳过加载: path=%s, error=%s",
                         self.index_path,
                         str(e),
                     )

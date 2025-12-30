@@ -5,8 +5,10 @@
 """
 信息源排名与匹配CLI命令
 
-提供信息源排名、匹配、管理等功能的命令行接口。
+提供信息源排名,匹配,管理等功能的命令行接口.
 """
+
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -27,7 +29,7 @@ console = Console()
 @source_matching_app.command()
 def match(
     query: str = typer.Argument(..., help="查询内容"),
-    sources: list[str] | None = typer.Option(
+    sources: Optional[List[str]] = typer.Option(
         None, "--source", "-s", help="信息源: local, web, builtin"
     ),
     limit: int = typer.Option(10, "--limit", "-l", help="返回结果数量限制"),
@@ -71,8 +73,8 @@ def match(
 def add(
     source_type: str = typer.Argument(..., help="信息源类型: local, web, builtin"),
     name: str = typer.Argument(..., help="信息源名称"),
-    url: str | None = typer.Option(None, "--url", "-u", help="信息源URL"),
-    file_path: str | None = typer.Option(None, "--file", "-f", help="本地文件路径"),
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="信息源URL"),
+    file_path: Optional[str] = typer.Option(None, "--file", "-f", help="本地文件路径"),
 ) -> None:
     """添加信息源"""
     BaseCLI()
@@ -92,7 +94,7 @@ def add(
 
 @source_matching_app.command()
 def list(
-    source_type: str | None = typer.Option(None, "--type", "-t", help="信息源类型"),
+    source_type: Optional[str] = typer.Option(None, "--type", "-t", help="信息源类型"),
 ) -> None:
     """列出信息源"""
     BaseCLI()
@@ -129,7 +131,7 @@ def list(
 def feedback(
     match_id: str = typer.Argument(..., help="匹配结果ID"),
     rating: int = typer.Argument(..., help="评分(1-5)"),
-    comment: str | None = typer.Option(None, "--comment", "-c", help="评论"),
+    comment: Optional[str] = typer.Option(None, "--comment", "-c", help="评论"),
 ) -> None:
     """提供反馈"""
     BaseCLI()

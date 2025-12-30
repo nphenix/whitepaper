@@ -5,7 +5,7 @@
 """
 Agent相关异常类模块
 
-提供Agent执行过程中的异常处理, 包括LangChain异常的包装和转换。
+提供Agent执行过程中的异常处理, 包括LangChain异常的包装和转换.
 """
 
 from typing import Any
@@ -16,7 +16,7 @@ from .base_exceptions import BaseApplicationError
 class AgentError(BaseApplicationError):
     """Agent基础异常类
 
-    所有Agent相关异常的基类。
+    所有Agent相关异常的基类.
     """
 
     def __init__(
@@ -44,7 +44,7 @@ class AgentError(BaseApplicationError):
 class AgentExecutionError(AgentError):
     """Agent执行错误异常
 
-    当Agent执行过程中发生错误时抛出。
+    当Agent执行过程中发生错误时抛出.
     """
 
     def __init__(
@@ -72,7 +72,7 @@ class AgentExecutionError(AgentError):
 class LangChainError(AgentExecutionError):
     """LangChain相关异常
 
-    用于包装和转换LangChain异常。
+    用于包装和转换LangChain异常.
     """
 
     def __init__(
@@ -133,7 +133,7 @@ class LangChainError(AgentExecutionError):
 class AgentToolError(AgentExecutionError):
     """Agent工具调用错误异常
 
-    当Agent调用工具时发生错误时抛出。
+    当Agent调用工具时发生错误时抛出.
     """
 
     def __init__(
@@ -161,7 +161,7 @@ class AgentToolError(AgentExecutionError):
 class AgentInputError(AgentError):
     """Agent输入错误异常
 
-    当Agent输入验证失败时抛出。
+    当Agent输入验证失败时抛出.
     """
 
     def __init__(
@@ -193,7 +193,7 @@ class AgentInputError(AgentError):
 class AgentStateError(AgentError):
     """Agent状态错误异常
 
-    当Agent处于不正确的状态时抛出。
+    当Agent处于不正确的状态时抛出.
     """
 
     def __init__(
@@ -221,7 +221,7 @@ class AgentStateError(AgentError):
 class AgentConfigurationError(AgentError):
     """Agent配置错误异常
 
-    当Agent配置不正确时抛出。
+    当Agent配置不正确时抛出.
     """
 
     def __init__(
@@ -249,7 +249,7 @@ class AgentConfigurationError(AgentError):
 class AgentMemoryError(AgentError):
     """Agent内存错误异常
 
-    当Agent内存操作失败时抛出。
+    当Agent内存操作失败时抛出.
     """
 
     def __init__(
@@ -277,7 +277,7 @@ class AgentMemoryError(AgentError):
 class AgentCallbackError(AgentError):
     """Agent回调错误异常
 
-    当Agent回调函数执行失败时抛出。
+    当Agent回调函数执行失败时抛出.
     """
 
     def __init__(
@@ -336,7 +336,7 @@ def wrap_langchain_error(
 class AgentTimeoutError(AgentExecutionError):
     """Agent超时异常
 
-    当Agent执行超过配置的超时时间时抛出。
+    当Agent执行超过配置的超时时间时抛出.
     """
 
     def __init__(
@@ -362,7 +362,7 @@ class AgentTimeoutError(AgentExecutionError):
 class AgentOrchestrationError(AgentError):
     """Agent编排异常
 
-    当Agent编排过程中发生错误时抛出。
+    当Agent编排过程中发生错误时抛出.
     """
 
     def __init__(

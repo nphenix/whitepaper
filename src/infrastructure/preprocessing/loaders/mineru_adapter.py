@@ -6,7 +6,7 @@
 MinerU在线服务适配器
 
 该模块实现了MinerU在线API的适配器,用于封装MinerU API调用,
-支持PDF和DOCX格式的文档解析,并将响应转换为LangChain Document格式。
+支持PDF和DOCX格式的文档解析,并将响应转换为LangChain Document格式.
 
 功能特性:
 - 封装MinerU在线服务API调用
@@ -55,9 +55,9 @@ class MinerUAdapter:
     """
     MinerU在线服务适配器
 
-    封装MinerU在线API调用,提供统一的接口用于文档解析。
-    统一使用批量上传API,即使是单个文件也通过批量API处理。
-    支持同步和异步调用,自动重试机制,完善的错误处理。
+    封装MinerU在线API调用,提供统一的接口用于文档解析.
+    统一使用批量上传API,即使是单个文件也通过批量API处理.
+    支持同步和异步调用,自动重试机制,完善的错误处理.
     """
 
     def __init__(self, config: AppConfig | None = None):
@@ -243,7 +243,7 @@ class MinerUAdapter:
 
     def _get_file_hash(self, file_path: str) -> str:
         """
-        计算文件的hash值(基于文件路径、修改时间和大小)
+        计算文件的hash值(基于文件路径,修改时间和大小)
 
         Args:
             file_path: 文件路径
@@ -254,7 +254,7 @@ class MinerUAdapter:
         # 标准化为绝对路径,确保不同调用路径下的文件hash一致
         path = Path(file_path).absolute().resolve()
         stat = path.stat()
-        # 使用文件路径(小写,避免Windows路径大小写问题)、修改时间和大小计算hash
+        # 使用文件路径(小写,避免Windows路径大小写问题),修改时间和大小计算hash
         hash_input = (
             f"{str(path).lower().replace('\\', '/')}_{stat.st_mtime}_{stat.st_size}"
         )
@@ -2138,7 +2138,7 @@ class MinerUAdapter:
         将文件移动到已处理目录
 
         注意:测试文件通常在 data/temp/uploads 目录下,处理完成后会移动到
-        data/processed/mineru/ 目录,避免重复提交。
+        data/processed/mineru/ 目录,避免重复提交.
 
         Args:
             file_path: 源文件路径
@@ -2281,7 +2281,7 @@ class MinerUAdapter:
                 for ext in [".pdf", ".docx"]:
                     # 收集所有匹配的文件
                     found_files = list(dir_path.glob(f"*{ext}"))
-                    # 过滤:只保留常规文件,排除隐藏文件、临时文件等
+                    # 过滤:只保留常规文件,排除隐藏文件,临时文件等
                     for fp in found_files:
                         if fp.is_file():  # 确保是文件而不是目录
                             file_name = fp.name
@@ -2993,7 +2993,7 @@ class MinerUAdapter:
         """
         同步提取文档内容(单个文件,内部使用批量API)
 
-        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性。
+        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性.
 
         Args:
             file_path: 文件路径
@@ -3124,7 +3124,7 @@ class MinerUAdapter:
                 for ext in [".pdf", ".docx"]:
                     # 收集所有匹配的文件
                     found_files = list(dir_path.glob(f"*{ext}"))
-                    # 过滤:只保留常规文件,排除隐藏文件、临时文件等
+                    # 过滤:只保留常规文件,排除隐藏文件,临时文件等
                     for fp in found_files:
                         if fp.is_file():  # 确保是文件而不是目录
                             file_name = fp.name
@@ -3211,7 +3211,7 @@ class MinerUAdapter:
         """
         异步提取文档内容(单个文件,内部使用批量API)
 
-        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性。
+        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性.
 
         Args:
             file_path: 文件路径

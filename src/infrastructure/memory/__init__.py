@@ -5,7 +5,7 @@
 """
 记忆管理模块
 
-提供 LangMem 和 LangGraph Checkpointer 的统一接口。
+提供 LangMem 和 LangGraph Checkpointer 的统一接口.
 
 主要组件:
     - LangMemAdapter: 长期记忆管理适配器

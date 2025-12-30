@@ -2,14 +2,14 @@
 文档分块策略实现 (T052)
 
 该模块实现文档分块策略, 使用 LlamaIndex 的 SentenceSplitter 进行句子级分块,
-并在此基础上支持按章节和段落进行分块, 保留丰富的分块元数据。
+并在此基础上支持按章节和段落进行分块, 保留丰富的分块元数据.
 
 设计目标:
 - 使用 ``llama_index.core.node_parser.SentenceSplitter`` 进行句子级分块
 - 支持按章节分块(保留章节路径信息)
 - 支持按段落分块(保留段落结构信息)
 - 支持自定义块大小和重叠策略
-- 保留分块元数据(章节路径、段落索引、文档位置等)
+- 保留分块元数据(章节路径,段落索引,文档位置等)
 """
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ except ImportError:  # pragma: no cover - 仅在未安装 llama-index 时触发
     logger.warning(
         "LlamaIndex not available, document chunking with SentenceSplitter will be disabled"
     )
-    SentenceSplitter = Any  # type: ignore[assignment]
-    Node = Any  # type: ignore[assignment]
-    TextNode = Any  # type: ignore[assignment]
+    SentenceSplitter = Any  # type: ignore
+    Node = Any  # type: ignore
+    TextNode = Any  # type: ignore
     LLAMA_INDEX_AVAILABLE = False
 
 
@@ -84,14 +84,14 @@ class DocumentChunkingStrategy:
     文档分块策略
 
     使用 SentenceSplitter 对 LlamaIndex Node 进行句子级分块, 并在此基础上
-    保留章节路径和段落索引等元数据, 便于后续索引和检索。
+    保留章节路径和段落索引等元数据, 便于后续索引和检索.
 
     典型用法:
         >>> strategy = DocumentChunkingStrategy()
         >>> chunked_nodes = strategy.chunk_nodes(nodes)
     """
 
-    # 被视为“段落类”元素的 element_type 值(来自 MarkdownParser)
+    # 被视为"段落类"元素的 element_type 值(来自 MarkdownParser)
     _PARAGRAPH_LIKE_ELEMENT_TYPES = {
         "paragraph",
         "list_item",
@@ -103,9 +103,12 @@ class DocumentChunkingStrategy:
 
     def __init__(self, config: ChunkingConfig | None = None) -> None:
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use DocumentChunkingStrategy."
+            )
+            raise ImportError(
+                msg
             )
 
         self.config = config or ChunkingConfig()
@@ -131,7 +134,7 @@ class DocumentChunkingStrategy:
         分块策略:
         - 使用 SentenceSplitter 进行句子级分块
         - 为每个分块保留原始节点的元数据
-        - 保留章节路径(section_path)、章节标题(section_title)
+        - 保留章节路径(section_path),章节标题(section_title)
         - 为段落类元素生成 paragraph_index
         - 为每个分块生成 chunk_index (文档内全局序号) 和
           chunk_index_in_node (在原始节点内的序号)
@@ -184,7 +187,8 @@ class DocumentChunkingStrategy:
                 split_texts = self._splitter.split_text(str(text))
             except Exception as exc:  # pragma: no cover - 保护性分支
                 logger.error("使用 SentenceSplitter 分块失败: %s", exc, exc_info=True)
-                raise ChunkingError(f"SentenceSplitter 分块失败: {exc}") from exc
+                msg = f"SentenceSplitter 分块失败: {exc}"
+                raise ChunkingError(msg) from exc
 
             if not split_texts:
                 logger.debug("SentenceSplitter 返回空结果, 保留原始节点: node_index=%s", node_index)
@@ -218,7 +222,7 @@ class DocumentChunkingStrategy:
                     text=str(chunk_text),
                     metadata=chunk_metadata,
                 )
-                chunked_nodes.append(chunk_node)
+                chunked_nodes.append(chunk_node)  # type: ignore[arg-type]
                 global_chunk_index += 1
 
         logger.info(

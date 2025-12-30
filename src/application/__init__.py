@@ -1,6 +1,6 @@
 """应用服务层
 
-包含Agent实现、业务服务和编排器。
+包含Agent实现,业务服务和编排器.
 """
 
 from .agent_base import AgentConfig, AgentStatus, BaseAgent

@@ -5,8 +5,8 @@
 """
 文档加载器模块
 
-该模块包含各种文档加载器的实现,用于加载不同格式的文档到LangChain Document对象。
-所有加载器都继承自BaseLoader基类,确保接口一致性。
+该模块包含各种文档加载器的实现,用于加载不同格式的文档到LangChain Document对象.
+所有加载器都继承自BaseLoader基类,确保接口一致性.
 """
 
 from ..error_handler import (

@@ -1,6 +1,6 @@
 """LLM 服务
-供统一的 LLM 模型获取和管理服务,支持多种提供商的动态加载。
-使用工厂模式和单例模式管理模型实例,支持按需创建和缓存。
+供统一的 LLM 模型获取和管理服务,支持多种提供商的动态加载.
+使用工厂模式和单例模式管理模型实例,支持按需创建和缓存.
 """
 
 import importlib.util
@@ -46,7 +46,7 @@ class DashScopeChatModel(BaseLanguageModel):
     """DashScope 聊天模型的 LangChain 包装器
 
     将 DashScope SDK 包装为 LangChain 兼容的 BaseLanguageModel,
-    支持流式输出和 LangChain 1.0 可配置字段。
+    支持流式输出和 LangChain 1.0 可配置字段.
     """
 
     def __init__(
@@ -201,7 +201,7 @@ class DashScopeChatModel(BaseLanguageModel):
 class DashScopeEmbeddingModel:
     """DashScope 嵌入模型的包装器
 
-    将 DashScope TextEmbedding API 包装为 LangChain 兼容的嵌入模型。
+    将 DashScope TextEmbedding API 包装为 LangChain 兼容的嵌入模型.
     """
 
     def __init__(self, model_name: str, api_key: str, **kwargs):
@@ -266,7 +266,7 @@ class DashScopeEmbeddingModel:
 class DashScopeRerankWrapper:
     """DashScope 重排序模型包装类
 
-    提供统一的接口用于重排序功能。
+    提供统一的接口用于重排序功能.
     """
 
     def __init__(self, api_key: str, model: str, top_n: int):
@@ -396,10 +396,18 @@ class OpenAICompatibleProvider(LLMProvider):
     """OpenAI 兼容接口提供商"""
 
     def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
-        """创建 OpenAI 兼容的聊天模型,使用 LangChain 1.0 init_chat_model 简化实现
+        """创建 OpenAI 兼容的聊天模型
 
-        所有配置必须从 config 中提供,无硬编码默认值。
-        使用 init_chat_model 简化模型创建和配置。
+        优先使用 OpenAI SDK 适配器（解决 LangChain ChatOpenAI 的 URL 构建问题），
+        如果环境变量 LLM_USE_LANGCHAIN=true，则使用 LangChain ChatOpenAI。
+
+        所有配置必须从 config 中提供,无硬编码默认值.
+
+        Args:
+            config: 模型配置字典
+
+        Returns:
+            BaseLanguageModel 实例
         """
         # 使用统一的配置验证器验证必需配置
         ConfigValidator.validate_required_keys(
@@ -415,27 +423,48 @@ class OpenAICompatibleProvider(LLMProvider):
             "OpenAI兼容配置",
         )
 
-        # 直接使用 ChatOpenAI 类,确保超时参数正确传递
-        # LangChain 1.0 的 ChatOpenAI 直接支持 timeout 参数
-        from langchain_openai import ChatOpenAI
+        # 检查是否强制使用 LangChain（用于测试或特殊场景）
+        import os
+        use_langchain = os.getenv("LLM_USE_LANGCHAIN", "false").lower() == "true"
 
-        timeout_value = config["timeout"]
+        if use_langchain:
+            # 使用 LangChain ChatOpenAI（原始方式）
+            from langchain_openai import ChatOpenAI
 
-        # 在 LangChain 1.0 中,ChatOpenAI 的 timeout 参数会正确传递给底层客户端
-        # 不需要自定义 httpx 客户端,直接使用 timeout 参数即可
-        model = ChatOpenAI(
-            model=config["model_name"],
-            temperature=config["temperature"],
-            max_tokens=config["max_tokens"],
-            api_key=config["api_key"],
-            base_url=config["base_url"],
-            timeout=float(timeout_value),  # 直接设置超时参数
-            max_retries=0,  # 禁用内部重试,防止触发并发限制
-        )
+            timeout_value = config["timeout"]
 
-        logger.info(
-            f"创建OpenAI兼容模型,直接设置timeout={timeout_value}秒,max_retries=0"
-        )
+            model = ChatOpenAI(
+                model=config["model_name"],
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
+                api_key=config["api_key"],
+                base_url=config["base_url"],
+                timeout=float(timeout_value),
+                max_retries=0,
+            )
+
+            logger.info(
+                f"创建LangChain ChatOpenAI模型: timeout={timeout_value}秒,max_retries=0"
+            )
+        else:
+            # 使用 OpenAI SDK 适配器（推荐，解决 URL 构建问题）
+            from src.shared.config.openai_sdk_adapter import OpenAISDKAdapter
+
+            timeout_value = config["timeout"]
+
+            model = OpenAISDKAdapter(
+                model_name=config["model_name"],
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
+                api_key=config["api_key"],
+                base_url=config["base_url"],
+                timeout=float(timeout_value),
+            )
+
+            logger.info(
+                f"创建OpenAI SDK适配器模型: model={config['model_name']}, "
+                f"base_url={config['base_url']}, timeout={timeout_value}秒"
+            )
 
         return model
 
@@ -460,8 +489,8 @@ class GeminiProvider(LLMProvider):
     def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
         """创建 Gemini 聊天模型,使用 LangChain 1.0 init_chat_model 简化实现
 
-        所有配置必须从 config 中提供,无硬编码默认值。
-        使用 init_chat_model 简化模型创建和配置。
+        所有配置必须从 config 中提供,无硬编码默认值.
+        使用 init_chat_model 简化模型创建和配置.
         """
         # 使用统一的配置验证器验证必需配置
         ConfigValidator.validate_required_keys(
@@ -507,8 +536,8 @@ class AnthropicProvider(LLMProvider):
     def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
         """创建 Claude 聊天模型,使用 LangChain 1.0 init_chat_model 简化实现
 
-        所有配置必须从 config 中提供,无硬编码默认值。
-        使用 init_chat_model 简化模型创建和配置。
+        所有配置必须从 config 中提供,无硬编码默认值.
+        使用 init_chat_model 简化模型创建和配置.
         """
         # 使用统一的配置验证器验证必需配置
         ConfigValidator.validate_required_keys(
@@ -545,8 +574,8 @@ class DashScopeProvider(LLMProvider):
     def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
         """创建 DashScope 聊天模型,使用 LangChain 1.0 init_chat_model 简化实现
 
-        所有配置必须从 config 中提供,无硬编码默认值。
-        使用 init_chat_model 简化模型创建和配置。
+        所有配置必须从 config 中提供,无硬编码默认值.
+        使用 init_chat_model 简化模型创建和配置.
         """
         # 直接尝试导入,不依赖 DASHSCOPE_AVAILABLE 变量
         try:
@@ -583,7 +612,7 @@ class DashScopeProvider(LLMProvider):
     def create_embedding_model(self, config: dict[str, Any]) -> Any:
         """创建 DashScope 嵌入模型
 
-        使用真正的 DashScope TextEmbedding API,无硬编码默认值。
+        使用真正的 DashScope TextEmbedding API,无硬编码默认值.
         """
         # 直接尝试导入,不依赖 DASHSCOPE_AVAILABLE 变量
         try:
@@ -639,8 +668,8 @@ class DashScopeProvider(LLMProvider):
 class LLMService:
     """LLM 服务单例
 
-    提供统一的模型获取接口,支持多种提供商的动态加载。
-    使用工厂模式和单例模式管理模型实例,支持按需创建和缓存。
+    提供统一的模型获取接口,支持多种提供商的动态加载.
+    使用工厂模式和单例模式管理模型实例,支持按需创建和缓存.
     """
 
     _instance = None
@@ -827,7 +856,7 @@ class LLMService:
     ) -> BaseLanguageModel:
         """获取广告清洗专用聊天模型
 
-        使用专门的广告清洗模型配置(ad_cleaning_llm),采用OpenAI兼容接口。
+        使用专门的广告清洗模型配置(ad_cleaning_llm),采用OpenAI兼容接口.
 
         重要说明:
         - max_tokens 参数会影响API请求中的输出token限制
@@ -836,8 +865,8 @@ class LLMService:
         - 建议使用 max_tokens_override 参数传入合理的值(如32000)
 
         Args:
-            max_tokens_override: 可选的max_tokens覆盖值。如果提供,将使用此值
-                               而不是配置中的值。推荐用于确保API请求不会超限。
+            max_tokens_override: 可选的max_tokens覆盖值.如果提供,将使用此值
+                               而不是配置中的值.推荐用于确保API请求不会超限.
 
         Returns:
             聊天模型实例
@@ -929,8 +958,8 @@ class LLMService:
     def get_chart_to_json_chat_model(self) -> BaseLanguageModel:
         """获取图表转JSON专用聊天模型
 
-        使用专门的图表转JSON模型配置(chart_to_json_llm),采用OpenAI兼容接口。
-        支持多模态输入(图像+文本),用于图表识别和结构化数据提取。
+        使用专门的图表转JSON模型配置(chart_to_json_llm),采用OpenAI兼容接口.
+        支持多模态输入(图像+文本),用于图表识别和结构化数据提取.
 
         Returns:
             聊天模型实例
@@ -986,14 +1015,30 @@ class LLMService:
                 return value
 
             # 构建配置字典(清理所有字符串配置值)
+            # max_tokens 从配置中读取，支持通过 CHART_TO_JSON_LLM_MAX_TOKENS 环境变量动态设置
+            model_name = clean_config_value(chart_to_json_config.model_name)
+            max_tokens = chart_to_json_config.max_tokens
+            
+            # 记录使用的 max_tokens 值（用于调试）
+            logger.debug(
+                "使用配置的 max_tokens=%d (可通过 CHART_TO_JSON_LLM_MAX_TOKENS 环境变量设置)",
+                max_tokens
+            )
+            
             config_dict = {
                 "base_url": clean_config_value(chart_to_json_config.base_url),
                 "api_key": clean_config_value(chart_to_json_config.api_key),
-                "model_name": clean_config_value(chart_to_json_config.model_name),
+                "model_name": model_name,
                 "temperature": chart_to_json_config.temperature,
-                "max_tokens": chart_to_json_config.max_tokens,
+                "max_tokens": max_tokens,
                 "timeout": chart_to_json_config.timeout,
             }
+            
+            # 确保 base_url 格式正确（GLM-4.6V 需要以 / 结尾）
+            base_url = config_dict["base_url"]
+            if base_url and not base_url.endswith("/"):
+                config_dict["base_url"] = base_url + "/"
+                logger.debug("调整 base_url 格式: %s -> %s", base_url, config_dict["base_url"])
 
             # 使用 openai_compatible 提供商创建模型
             provider_instance = self._providers["openai_compatible"]
@@ -1023,7 +1068,7 @@ class LLMService:
             raise ValueError(error_msg)
 
         # 优先从配置对象获取配置,确保配置对象的值优先于环境变量
-        # 对于 openai_compatible、gemini、anthropic,使用 llm_config(来自 validate_llm_config)
+        # 对于 openai_compatible,gemini,anthropic,使用 llm_config(来自 validate_llm_config)
         # 对于 dashscope,也使用 llm_config,但需要从环境变量读取(因为 validate_llm_config 不处理 dashscope)
         llm_config = self._config.llm_config or {}
 

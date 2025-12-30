@@ -5,8 +5,10 @@
 """
 规范条件设置CLI命令
 
-提供规范条件设置、管理等功能的命令行接口。
+提供规范条件设置,管理等功能的命令行接口.
 """
+
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -88,7 +90,7 @@ def get(
 
 @constraints_app.command()
 def validate(
-    config_file: str | None = typer.Option(None, "--file", "-f", help="配置文件路径"),
+    config_file: Optional[str] = typer.Option(None, "--file", "-f", help="配置文件路径"),
 ) -> None:
     """验证规范条件"""
     BaseCLI()

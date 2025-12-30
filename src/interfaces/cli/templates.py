@@ -5,8 +5,10 @@
 """
 文档模板管理CLI命令
 
-提供文档模板管理、生成等功能的命令行接口。
+提供文档模板管理,生成等功能的命令行接口.
 """
+
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -26,7 +28,7 @@ console = Console()
 
 @templates_app.command()
 def list(
-    category: str | None = typer.Option(None, "--category", "-c", help="模板类别"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="模板类别"),
 ) -> None:
     """列出文档模板"""
     BaseCLI()
@@ -63,7 +65,7 @@ def list(
 def generate(
     template_name: str = typer.Argument(..., help="模板名称"),
     output_file: str = typer.Option(..., "--output", "-o", help="输出文件路径"),
-    data_file: str | None = typer.Option(None, "--data", "-d", help="数据文件路径"),
+    data_file: Optional[str] = typer.Option(None, "--data", "-d", help="数据文件路径"),
 ) -> None:
     """基于模板生成文档"""
     BaseCLI()

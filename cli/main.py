@@ -5,17 +5,21 @@
 """
 WhitePaper CLI 主入口点
 
-这是WhitePaper系统的命令行界面入口,提供对文档处理、知识库管理、
-Agent编排等功能的命令行访问。
+这是WhitePaper系统的命令行界面入口,提供对文档处理,知识库管理,
+Agent编排等功能的命令行访问.
 """
+
+from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from cli.base import BaseCLI
+from src.interfaces.api.main import cli as api_cli
 from src.interfaces.cli.agents import agents_app
 from src.interfaces.cli.constraints import constraints_app
+from src.interfaces.cli.drafts import drafts_app
 from src.interfaces.cli.documents import documents_app
 from src.interfaces.cli.homepage import homepage_app
 from src.interfaces.cli.knowledge_base import knowledge_base_app
@@ -35,7 +39,9 @@ app = typer.Typer(
 console = Console()
 
 # 添加子应用
+app.add_typer(api_cli, name="api", help="API服务器管理")
 app.add_typer(documents_app, name="documents", help="文档管理和预处理")
+app.add_typer(drafts_app, name="drafts", help="草稿管理（导出/查看）")
 app.add_typer(knowledge_base_app, name="knowledge-base", help="知识库管理和检索")
 app.add_typer(agents_app, name="agents", help="Agent管理和编排")
 app.add_typer(homepage_app, name="homepage", help="首页和智能检索")
@@ -55,7 +61,7 @@ def version_callback(*, value: bool) -> None:
 
 @app.callback()
 def main(
-    version: bool | None = typer.Option(
+    version: bool = typer.Option(
         False,
         "--version",
         "-v",
@@ -64,20 +70,20 @@ def main(
         is_eager=True,
         flag_value=True,
     ),
-    verbose: bool | None = typer.Option(
+    verbose: bool = typer.Option(
         False,
         "--verbose",
         help="启用详细输出",
         flag_value=True,
     ),
-    config: str | None = typer.Option(None, "--config", "-c", help="指定配置文件路径"),
+    config: Optional[str] = typer.Option(None, "--config", "-c", help="指定配置文件路径"),
 ) -> None:
     """
     WhitePaper - 多Agent协作的文档处理与生成系统
 
     这是一个基于LangChain 1.0的智能文档处理系统,支持:
     • 文档预处理与清洗
-    • 多模式索引构建(向量、BM25、元数据、知识图谱)
+    • 多模式索引构建(向量,BM25,元数据,知识图谱)
     • 结构优化Agent
     • 信息源排名与匹配
     • 草稿生成与润色

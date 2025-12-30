@@ -1,8 +1,8 @@
 """
 文档预处理Agent
 
-基于BaseAgent实现的文档预处理Agent,使用LangChain 1.0的Agent框架和工具系统。
-集成T031预处理协调器、T030A-LLM-AdRemover和T031B图表转JSON转换器。
+基于BaseAgent实现的文档预处理Agent,使用LangChain 1.0的Agent框架和工具系统.
+集成T031预处理协调器,T030A-LLM-AdRemover和T031B图表转JSON转换器.
 
 生成命令: /speckit.implement T032
 生成时间: 2025-12-17
@@ -44,8 +44,8 @@ def create_clean_document_tool(ad_remover: LLMAdRemover) -> BaseTool:
     ) -> dict[str, Any]:
         """清洗文档内容
 
-        使用LLM智能识别并删除广告内容、目录、图表目录等无意义信息。
-        保留所有图片链接信息、文档主体内容和章节结构。
+        使用LLM智能识别并删除广告内容,目录,图表目录等无意义信息.
+        保留所有图片链接信息,文档主体内容和章节结构.
 
         Args:
             document_content: 文档内容(Markdown格式)
@@ -112,9 +112,9 @@ def create_chart_to_json_tool(converter: LLMChartToJsonConverter) -> BaseTool:
     ) -> dict[str, Any]:
         """将文档目录中的图表转换为JSON格式
 
-        扫描文档目录中的images/文件夹,识别所有图片文件。
-        使用LLM对每个图片进行分析,判断是否为图表。
-        对于识别为图表的图片,将其转换为JSON格式。
+        扫描文档目录中的images/文件夹,识别所有图片文件.
+        使用LLM对每个图片进行分析,判断是否为图表.
+        对于识别为图表的图片,将其转换为JSON格式.
 
         Args:
             document_directory: 文档目录路径(T031处理后的输出目录,MinerU输出目录)
@@ -145,7 +145,7 @@ def create_chart_to_json_tool(converter: LLMChartToJsonConverter) -> BaseTool:
     return StructuredTool.from_function(
         func=convert_charts_to_json,
         name="convert_charts_to_json",
-        description="""将文档目录中的图表转换为JSON格式。
+        description="""将文档目录中的图表转换为JSON格式.
 
 功能:
 1. 扫描文档目录中的images/文件夹,识别所有图片文件
@@ -154,7 +154,7 @@ def create_chart_to_json_tool(converter: LLMChartToJsonConverter) -> BaseTool:
 4. JSON文件保存到datajson/目录中,文件名使用图表的中文名称
 
 输入:document_directory(T031处理后的输出目录路径)
-输出:转换统计信息(成功/失败数量、处理时间等)""",
+输出:转换统计信息(成功/失败数量,处理时间等)""",
     )
 
 
@@ -175,7 +175,7 @@ class DocumentPreprocessorAgent(BaseAgent):
     架构优势:
     - 保持LLMAdRemover和LLMChartToJsonConverter的独立性
     - 统一使用BaseAgent的生命周期管理
-    - 自动获得错误处理、日志记录、状态持久化等能力
+    - 自动获得错误处理,日志记录,状态持久化等能力
     - 符合LangChain 1.0最佳实践(工具化设计模式)
     """
 
@@ -254,16 +254,16 @@ class DocumentPreprocessorAgent(BaseAgent):
     def _get_system_message(self) -> str:
         """获取系统消息
 
-        重写BaseAgent的系统消息,提供文档预处理Agent的专用说明。
+        重写BaseAgent的系统消息,提供文档预处理Agent的专用说明.
         """
         base_message = super()._get_system_message()
         return f"""{base_message}
 
-你是一个专业的文档预处理Agent,负责处理各种格式的文档(PDF、DOCX等)。
+你是一个专业的文档预处理Agent,负责处理各种格式的文档(PDF,DOCX等).
 
 你的主要任务:
 1. 加载文档:根据文档格式自动选择对应的加载器(MinerU PDF/DOCX加载器)
-2. 清洗文档:使用clean_document工具清洗文档内容,去除广告、目录等无意义信息
+2. 清洗文档:使用clean_document工具清洗文档内容,去除广告,目录等无意义信息
 3. 图表转换:使用convert_charts_to_json工具将文档中的图表转换为JSON格式(如果启用)
 
 处理流程:
@@ -317,19 +317,64 @@ class DocumentPreprocessorAgent(BaseAgent):
                     if output_dir:
                         # 构建文档输出目录路径
                         doc_name = Path(file_path).stem
-                        doc_output_dir = Path(output_dir) / doc_name
-
-                        # 查找extracted目录(MinerU处理后的目录)
-                        extracted_dirs = list(doc_output_dir.glob("**/extracted*"))
-                        if extracted_dirs:
-                            extracted_dir = extracted_dirs[0]
-                            logger.info("开始转换图表: %s", extracted_dir)
-                            self.chart_converter.process_mineru_directory(
-                                str(extracted_dir)
+                        base_output_dir = Path(output_dir)
+                        # MinerU 输出目录名可能在 stem 后附加后缀（例如 hash/版本），不能假设严格等于 stem
+                        candidate_output_dirs: list[Path] = []
+                        stem_dir = base_output_dir / doc_name
+                        if stem_dir.exists():
+                            candidate_output_dirs.append(stem_dir)
+                        candidate_output_dirs.extend(
+                            sorted(
+                                [
+                                    p
+                                    for p in base_output_dir.glob(f"{doc_name}*")
+                                    if p.is_dir()
+                                ]
                             )
-                            logger.info("图表转换完成: %s", extracted_dir)
+                        )
+
+                        def _has_existing_json(target_dir: Path) -> bool:
+                            datajson_dir = target_dir / "datajson"
+                            return datajson_dir.exists() and any(datajson_dir.rglob("*.json"))
+
+                        # 1) 如果已存在 datajson/*.json，说明图转JSON已执行过（T031 预处理器内部也会做一次）
+                        #    避免在 Agent 层重复执行导致“看起来一直在转/重复烧 LLM”。
+                        if any(_has_existing_json(p) for p in candidate_output_dirs):
+                            logger.info("检测到图表JSON已存在，跳过Agent层重复图表转JSON: %s", doc_name)
                         else:
-                            logger.warning("未找到extracted目录: %s", doc_output_dir)
+                            # 2) 选择一个包含 images/ 的 MinerU 输出目录进行转换
+                            target_dir: Path | None = None
+                            for candidate_dir in candidate_output_dirs:
+                                if (candidate_dir / "images").exists():
+                                    target_dir = candidate_dir
+                                    break
+                                # 兼容：候选目录下可能还有 *_extracted 子目录
+                                for p in candidate_dir.glob("**/*extracted*"):
+                                    if p.is_dir() and (p / "images").exists():
+                                        target_dir = p
+                                        break
+                                if target_dir is not None:
+                                    break
+
+                            if target_dir is not None:
+                                if _has_existing_json(target_dir):
+                                    logger.info(
+                                        "检测到图表JSON已存在，跳过图表转JSON: %s",
+                                        target_dir,
+                                    )
+                                else:
+                                    logger.info("开始转换图表: %s", target_dir)
+                                    self.chart_converter.process_mineru_directory(str(target_dir))
+                                    logger.info("图表转换完成: %s", target_dir)
+                            else:
+                                searched = (
+                                    [str(p) for p in candidate_output_dirs]
+                                    if candidate_output_dirs
+                                    else [str(base_output_dir)]
+                                )
+                                logger.warning(
+                                    "未找到包含images的MinerU目录(已搜索): %s", ", ".join(searched)
+                                )
                     else:
                         logger.warning("未配置输出目录,跳过图表转换")
                 except Exception as e:
@@ -346,7 +391,7 @@ class DocumentPreprocessorAgent(BaseAgent):
     def process_document(self, document: Document) -> Document:
         """处理单个Document对象
 
-        对单个Document对象进行清洗处理。
+        对单个Document对象进行清洗处理.
 
         Args:
             document: 要处理的Document对象
@@ -386,7 +431,7 @@ class DocumentPreprocessorAgent(BaseAgent):
     def process_documents(self, documents: list[Document]) -> list[Document]:
         """批量处理Document列表
 
-        对Document列表进行批量清洗处理。
+        对Document列表进行批量清洗处理.
 
         Args:
             documents: 要处理的Document列表

@@ -1,6 +1,6 @@
 """API 接口层
 
-提供 FastAPI 应用的基础结构和配置。
+提供 FastAPI 应用的基础结构和配置.
 """
 
 # 生成命令: /speckit.implement T019

@@ -2,7 +2,7 @@
 向量嵌入生成器实现 (T053)
 
 该模块实现向量嵌入生成功能, 使用 LlamaIndex 的 embedding 接口,
-集成项目统一的 embedding 模型配置(从 T009 llm_service 获取)。
+集成项目统一的 embedding 模型配置(从 T009 llm_service 获取).
 
 设计目标:
 - 使用 ``llama_index.core.embeddings`` 或 ``llama_index.embeddings`` 进行向量嵌入
@@ -15,8 +15,6 @@
 from __future__ import annotations
 
 import hashlib
-import logging
-from functools import lru_cache
 from typing import Any
 
 from src.shared.config.llm_service import get_llm_service
@@ -55,7 +53,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
     LangChain Embedding 模型适配器
 
     将 LangChain 的 embedding 模型包装为 LlamaIndex 的 BaseEmbedding,
-    以便在 LlamaIndex 中使用项目统一的 embedding 配置。
+    以便在 LlamaIndex 中使用项目统一的 embedding 配置.
     """
 
     def __init__(
@@ -71,8 +69,9 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
             model_name: 模型名称, 用于标识
         """
         if not LLAMA_INDEX_AVAILABLE:
+            msg = "LlamaIndex is not available. Please install llama-index package."
             raise ImportError(
-                "LlamaIndex is not available. Please install llama-index package."
+                msg
             )
 
         super().__init__(model_name=model_name)
@@ -105,7 +104,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量
         """
-        return self._langchain_embedding.embed_query(query)
+        return self._langchain_embedding.embed_query(query)  # type: ignore
 
     def _get_text_embedding(self, text: str) -> list[float]:
         """
@@ -117,7 +116,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量
         """
-        return self._langchain_embedding.embed_query(text)
+        return self._langchain_embedding.embed_query(text)  # type: ignore
 
     def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
         """
@@ -129,7 +128,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量列表
         """
-        return self._langchain_embedding.embed_documents(texts)
+        return self._langchain_embedding.embed_documents(texts)  # type: ignore
 
     async def _aget_query_embedding(self, query: str) -> list[float]:
         """
@@ -143,7 +142,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         """
         # 检查是否支持异步方法
         if hasattr(self._langchain_embedding, "aembed_query"):
-            return await self._langchain_embedding.aembed_query(query)
+            return await self._langchain_embedding.aembed_query(query)  # type: ignore[no-any-return]
         # 回退到同步方法
         return self._get_query_embedding(query)
 
@@ -161,7 +160,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         """
         # 检查是否支持异步方法
         if hasattr(self._langchain_embedding, "aembed_documents"):
-            return await self._langchain_embedding.aembed_documents(texts)
+            return await self._langchain_embedding.aembed_documents(texts)  # type: ignore[no-any-return]
         # 回退到同步方法
         return self._get_text_embeddings(texts)
 
@@ -171,7 +170,7 @@ class EmbeddingCache:
     嵌入结果缓存
 
     使用 LRU 缓存策略, 基于文本内容的哈希值进行缓存,
-    避免对相同文本重复计算嵌入向量。
+    避免对相同文本重复计算嵌入向量.
     """
 
     def __init__(self, max_size: int = 1000) -> None:
@@ -249,7 +248,7 @@ class EmbeddingGenerator:
     向量嵌入生成器
 
     使用 LlamaIndex 的 embedding 接口, 集成项目统一的 embedding 模型配置,
-    支持批量嵌入生成、异步嵌入生成和结果缓存。
+    支持批量嵌入生成,异步嵌入生成和结果缓存.
 
     典型用法:
         >>> generator = EmbeddingGenerator()
@@ -277,9 +276,12 @@ class EmbeddingGenerator:
             EmbeddingError: 如果无法获取 embedding 模型
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use EmbeddingGenerator."
+            )
+            raise ImportError(
+                msg
             )
 
         # 获取 embedding 模型
@@ -291,7 +293,7 @@ class EmbeddingGenerator:
 
                 # 将 LangChain embedding 模型包装为 LlamaIndex BaseEmbedding
                 # 使用适配器类, 兼容 LlamaIndex 接口
-                # 获取模型名称，如果配置不存在或无效则使用默认值
+                # 获取模型名称,如果配置不存在或无效则使用默认值
                 model_name = "langchain-embedding"
                 if llm_service._config and hasattr(llm_service._config, "embedding"):
                     config_model_name = getattr(
@@ -378,7 +380,7 @@ class EmbeddingGenerator:
         # 批量生成嵌入向量
         if nodes_to_embed:
             try:
-                # 只提取有效文本（非空）
+                # 只提取有效文本(非空)
                 texts = []
                 valid_nodes = []
                 for node in nodes_to_embed:
@@ -388,7 +390,7 @@ class EmbeddingGenerator:
                         valid_nodes.append(node)
 
                 if not texts:
-                    # 如果没有有效文本, 直接返回所有节点（不设置embedding）
+                    # 如果没有有效文本, 直接返回所有节点(不设置embedding)
                     embedded_nodes.extend(nodes_to_embed)
                 else:
                     # 使用 LlamaIndex embedding 模型的 _get_text_embeddings 方法
@@ -405,7 +407,7 @@ class EmbeddingGenerator:
                             text_str = str(getattr(node, "text", ""))
                             self.cache.set(text_str, embedding)
 
-                    # 处理无效节点（空文本）
+                    # 处理无效节点(空文本)
                     for node in nodes_to_embed:
                         if node not in valid_nodes:
                             embedded_nodes.append(node)
@@ -430,7 +432,7 @@ class EmbeddingGenerator:
         异步为 LlamaIndex Node 列表生成嵌入向量
 
         如果 embedding 模型支持异步操作, 则使用异步方法;
-        否则回退到同步方法。
+        否则回退到同步方法.
 
         Args:
             nodes: LlamaIndex Node 列表
@@ -477,7 +479,7 @@ class EmbeddingGenerator:
         # 异步批量生成嵌入向量
         if nodes_to_embed:
             try:
-                # 只提取有效文本（非空）
+                # 只提取有效文本(非空)
                 texts = []
                 valid_nodes = []
                 for node in nodes_to_embed:
@@ -487,7 +489,7 @@ class EmbeddingGenerator:
                         valid_nodes.append(node)
 
                 if not texts:
-                    # 如果没有有效文本, 直接返回所有节点（不设置embedding）
+                    # 如果没有有效文本, 直接返回所有节点(不设置embedding)
                     embedded_nodes.extend(nodes_to_embed)
                 else:
                     # 检查是否支持异步方法
@@ -518,7 +520,7 @@ class EmbeddingGenerator:
                             text_str = str(getattr(node, "text", ""))
                             self.cache.set(text_str, embedding)
 
-                    # 处理无效节点（空文本）
+                    # 处理无效节点(空文本)
                     for node in nodes_to_embed:
                         if node not in valid_nodes:
                             embedded_nodes.append(node)

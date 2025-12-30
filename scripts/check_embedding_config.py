@@ -179,7 +179,7 @@ def check_embedding_config():
         print("  4. 重启服务使配置生效")
         return False
     else:
-        print("✅ 所有检查通过!配置完全一致。")
+        print("✅ 所有检查通过!配置完全一致.")
         print()
         print("📋 配置总结:")
         print(f"  - Provider:  {provider}")

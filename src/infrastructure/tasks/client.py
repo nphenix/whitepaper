@@ -1,6 +1,6 @@
 """任务队列客户端
 
-提供任务提交、查询和管理的高级接口,包括:
+提供任务提交,查询和管理的高级接口,包括:
 - 任务提交和调度
 - 任务状态查询
 - 任务结果获取
@@ -10,15 +10,14 @@
 
 import asyncio
 import contextlib
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from arq.connections import ArqRedis
 from arq.constants import job_key_prefix, result_key_prefix
 
-from typing import cast, Awaitable
 from src.shared.utils.logging import get_logger
 
 from .settings import TaskSettings, get_task_settings
@@ -30,7 +29,7 @@ logger = get_logger(__name__)
 class TaskClient:
     """任务队列客户端
 
-    提供任务提交、查询和管理的高级接口。
+    提供任务提交,查询和管理的高级接口.
     """
 
     def __init__(self, settings: TaskSettings | None = None):
@@ -387,7 +386,7 @@ class TaskClient:
             queue_name = self.settings.queue.name
 
             # 获取队列长度
-            queue_length = await cast(Awaitable[int], self.redis.llen(f"arq:queue:{queue_name}"))
+            queue_length = await cast("Awaitable[int]", self.redis.llen(f"arq:queue:{queue_name}"))
 
             # 获取活跃任务数
             active_jobs = 0

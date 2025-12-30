@@ -5,8 +5,10 @@
 """
 Agent管理CLI命令
 
-提供Agent管理、编排、执行等功能的命令行接口。
+提供Agent管理,编排,执行等功能的命令行接口.
 """
+
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -39,7 +41,7 @@ def list() -> None:
     # 这里将实现实际的Agent列表逻辑
     # 目前只是模拟数据
     agents = [
-        ("document_preprocessor", "文档预处理", "就绪", "文档加载、清洗和预处理"),
+        ("document_preprocessor", "文档预处理", "就绪", "文档加载,清洗和预处理"),
         ("structure_optimizer", "结构优化", "就绪", "文档大纲结构优化"),
         ("information_retriever", "信息检索", "就绪", "多模式信息检索"),
         ("draft_generator", "草稿生成", "就绪", "文档草稿生成和润色"),
@@ -55,7 +57,7 @@ def list() -> None:
 def run(
     agent_name: str = typer.Argument(..., help="Agent名称"),
     input_data: str = typer.Option(..., "--input", "-i", help="输入数据"),
-    config_file: str | None = typer.Option(None, "--config", "-c", help="配置文件路径"),
+    config_file: Optional[str] = typer.Option(None, "--config", "-c", help="配置文件路径"),
 ) -> None:
     """运行Agent"""
     BaseCLI()

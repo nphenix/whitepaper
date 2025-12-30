@@ -5,9 +5,9 @@
 """
 文档预处理协调器
 
-该模块统一协调文档加载和清洗流程,仅支持MinerU产线。
-根据文档格式自动选择对应的加载器,直接使用LLMAdRemover进行清洗处理。
-基于LangChain 1.0最佳实践实现,提供统一的文档预处理接口。
+该模块统一协调文档加载和清洗流程,仅支持MinerU产线.
+根据文档格式自动选择对应的加载器,直接使用LLMAdRemover进行清洗处理.
+基于LangChain 1.0最佳实践实现,提供统一的文档预处理接口.
 
 功能特性:
 - 统一协调文档加载和清洗流程(仅支持MinerU产线)
@@ -59,8 +59,8 @@ class DocumentPreprocessor:
     """
     文档预处理协调器
 
-    统一协调文档加载和清洗流程,仅支持MinerU产线。
-    根据文档格式自动选择对应的加载器,直接使用LLMAdRemover进行清洗处理。
+    统一协调文档加载和清洗流程,仅支持MinerU产线.
+    根据文档格式自动选择对应的加载器,直接使用LLMAdRemover进行清洗处理.
 
     处理流程:
     1. 格式识别(T038)→ 检测文档格式和验证
@@ -228,7 +228,7 @@ class DocumentPreprocessor:
 
         按照 T031A 要求的目录结构保存:
         - 输出:data/cleaned/documents/{doc_name}/{extracted_dir}/clean.md
-        - 同时复制:images/ 目录、layout.json 等元数据文件
+        - 同时复制:images/ 目录,layout.json 等元数据文件
 
         Args:
             file_path: 原始文件路径
@@ -347,19 +347,31 @@ class DocumentPreprocessor:
                                 LLMChartToJsonConverter,
                             )
 
-                            logger.info(f"开始图表转JSON转换: {output_dir}")
-                            chart_converter = LLMChartToJsonConverter(
-                                llm_service=self.llm_service
+                            # 如果已经生成过 datajson/*.json，则跳过重复的LLM图表解析
+                            datajson_dir = output_dir / "datajson"
+                            existing_json = (
+                                datajson_dir.exists()
+                                and any(datajson_dir.rglob("*.json"))
                             )
-                            chart_result = chart_converter.process_mineru_directory(
-                                str(output_dir), create_datajson_dir=True
-                            )
-                            stats = chart_result.get("overall_statistics", {})
-                            logger.info(
-                                f"图表转JSON完成: 处理 {stats.get('total_images_processed', 0)} 个图像, "
-                                f"发现 {stats.get('total_charts_found', 0)} 个图表, "
-                                f"生成 {stats.get('total_json_files_generated', 0)} 个JSON文件"
-                            )
+                            if existing_json:
+                                logger.info(
+                                    "检测到图表JSON已存在，跳过图表转JSON: %s",
+                                    datajson_dir,
+                                )
+                            else:
+                                logger.info(f"开始图表转JSON转换: {output_dir}")
+                                chart_converter = LLMChartToJsonConverter(
+                                    llm_service=self.llm_service
+                                )
+                                chart_result = chart_converter.process_mineru_directory(
+                                    str(output_dir), create_datajson_dir=True
+                                )
+                                stats = chart_result.get("overall_statistics", {})
+                                logger.info(
+                                    f"图表转JSON完成: 处理 {stats.get('total_images_processed', 0)} 个图像, "
+                                    f"发现 {stats.get('total_charts_found', 0)} 个图表, "
+                                    f"生成 {stats.get('total_json_files_generated', 0)} 个JSON文件"
+                                )
                         except Exception as e:
                             logger.warning(f"图表转JSON失败,不影响主流程: {e}")
 
@@ -525,38 +537,92 @@ class DocumentPreprocessor:
                         file_path=file_path, stage="content_cleaning"
                     )
 
-                    # 直接使用LLMAdRemover清洗Document对象
-                    # 注意:cleaning_pipeline.process_single_document是用于处理文件系统的,
-                    # 这里我们处理的是已经加载的Document对象,所以直接使用LLMAdRemover
-                    ad_remover = LLMAdRemover(llm_service=self.llm_service)
+                    # 复用已存在的清洗产物：若 clean.md 已存在，则跳过LLM清洗
+                    used_cache = False
+                    if self.output_dir:
+                        for doc in documents:
+                            extracted_dir = doc.metadata.get("extracted_dir")
+                            if not extracted_dir:
+                                continue
+                            extracted_path = Path(extracted_dir)
+                            try:
+                                mineru_base = Path("data/processed/mineru")
+                                if extracted_path.is_absolute():
+                                    parts = extracted_path.parts
+                                    for j, part in enumerate(parts):
+                                        if part == "mineru" and j + 2 < len(parts):
+                                            relative_path = Path(*parts[j + 1 :])
+                                            break
+                                    else:
+                                        relative_path = (
+                                            Path(extracted_path.parent.name)
+                                            / extracted_path.name
+                                        )
+                                else:
+                                    relative_path = extracted_path.relative_to(mineru_base)
+                            except ValueError:
+                                relative_path = (
+                                    Path(extracted_path.parent.name) / extracted_path.name
+                                )
 
-                    # 逐个清洗文档,避免上下文过长
-                    cleaned_documents = []
-                    for i, doc in enumerate(documents):
-                        try:
-                            logger.info(
-                                "开始清洗文档 %d/%d: %s",
-                                i + 1,
-                                len(documents),
-                                doc.metadata.get("source", "unknown"),
-                            )
-                            # 逐个提交每个Document,避免上下文过长
-                            cleaned_doc = ad_remover.clean_document(doc)
-                            cleaned_documents.append(cleaned_doc)
-                            logger.info(
-                                "完成清洗文档 %d/%d: %s",
-                                i + 1,
-                                len(documents),
-                                doc.metadata.get("source", "unknown"),
-                            )
-                        except Exception as e:
-                            logger.warning(
-                                f"清洗文档 {i + 1}/{len(documents)} 失败,保留原始文档: {e}"
-                            )
-                            cleaned_documents.append(doc)
+                            cached_clean_md = self.output_dir / relative_path / "clean.md"
+                            if cached_clean_md.exists() and cached_clean_md.stat().st_size > 0:
+                                try:
+                                    cached_content = cached_clean_md.read_text(
+                                        encoding="utf-8"
+                                    )
+                                    doc.page_content = cached_content
+                                    doc.metadata.update(
+                                        {
+                                            "cleaned": True,
+                                            "cache_hit": True,
+                                            "cached_clean_md": str(cached_clean_md),
+                                        }
+                                    )
+                                    used_cache = True
+                                except Exception as e:
+                                    logger.warning(
+                                        "读取缓存clean.md失败，将回退LLM清洗: %s (error=%s)",
+                                        cached_clean_md,
+                                        e,
+                                    )
 
-                    documents = cleaned_documents
-                    pipeline_name = "llm_ad_cleaning"
+                    if used_cache:
+                        logger.info("检测到clean.md缓存命中，跳过LLM广告清洗: %s", file_path)
+                        pipeline_name = "cached_clean_md"
+                    else:
+                        # 直接使用LLMAdRemover清洗Document对象
+                        # 注意:cleaning_pipeline.process_single_document是用于处理文件系统的,
+                        # 这里我们处理的是已经加载的Document对象,所以直接使用LLMAdRemover
+                        ad_remover = LLMAdRemover(llm_service=self.llm_service)
+
+                        # 逐个清洗文档,避免上下文过长
+                        cleaned_documents = []
+                        for i, doc in enumerate(documents):
+                            try:
+                                logger.info(
+                                    "开始清洗文档 %d/%d: %s",
+                                    i + 1,
+                                    len(documents),
+                                    doc.metadata.get("source", "unknown"),
+                                )
+                                # 逐个提交每个Document,避免上下文过长
+                                cleaned_doc = ad_remover.clean_document(doc)
+                                cleaned_documents.append(cleaned_doc)
+                                logger.info(
+                                    "完成清洗文档 %d/%d: %s",
+                                    i + 1,
+                                    len(documents),
+                                    doc.metadata.get("source", "unknown"),
+                                )
+                            except Exception as e:
+                                logger.warning(
+                                    f"清洗文档 {i + 1}/{len(documents)} 失败,保留原始文档: {e}"
+                                )
+                                cleaned_documents.append(doc)
+
+                        documents = cleaned_documents
+                        pipeline_name = "llm_ad_cleaning"
 
                     # 记录内容清洗阶段成功
                     stage_processing_time = time.time() - stage_start_time
@@ -604,7 +670,8 @@ class DocumentPreprocessor:
             self._update_stats(format_info.format, pipeline_name, success=True)
 
             # 计算总处理时间
-            start_time = self.stats.get("start_time", time.time())
+            # 确保start_time不为None，如果为None或不存在，使用当前时间
+            start_time = self.stats.get("start_time") or time.time()
             total_processing_time = time.time() - start_time
 
             # 记录完成日志
@@ -659,7 +726,7 @@ class DocumentPreprocessor:
     def process_documents(self, file_paths: list[str]) -> list[Document]:
         """批量处理文档
 
-        使用MinerU批量API一次性处理所有文件,避免重复上传。
+        使用MinerU批量API一次性处理所有文件,避免重复上传.
 
         Args:
             file_paths: 文档路径列表
@@ -779,34 +846,92 @@ class DocumentPreprocessor:
                     # 重要:逐个处理每个Document,避免一次性提交多个文档导致上下文过长
                     if self.enable_cleaning:
                         try:
-                            ad_remover = LLMAdRemover(llm_service=self.llm_service)
-                            cleaned_documents = []
-                            for i, doc in enumerate(documents):
-                                try:
-                                    logger.info(
-                                        "开始清洗文档 %d/%d (文件: %s): %s",
-                                        i + 1,
-                                        len(documents),
-                                        file_path,
-                                        doc.metadata.get("source", "unknown"),
-                                    )
-                                    # 逐个提交每个Document,避免上下文过长
-                                    cleaned_doc = ad_remover.clean_document(doc)
-                                    cleaned_documents.append(cleaned_doc)
-                                    logger.info(
-                                        "完成清洗文档 %d/%d (文件: %s): %s",
-                                        i + 1,
-                                        len(documents),
-                                        file_path,
-                                        doc.metadata.get("source", "unknown"),
-                                    )
-                                except Exception as e:
-                                    logger.warning(
-                                        f"清洗文档 {i + 1}/{len(documents)} (文件: {file_path}) 失败,保留原始文档: {e}"
-                                    )
-                                    cleaned_documents.append(doc)
-                            documents = cleaned_documents
-                            pipeline_name = "llm_ad_cleaning"
+                            # 复用已存在的清洗产物：若 clean.md 已存在，则跳过LLM清洗
+                            used_cache = False
+                            if self.output_dir:
+                                for doc in documents:
+                                    extracted_dir = doc.metadata.get("extracted_dir")
+                                    if not extracted_dir:
+                                        continue
+                                    extracted_path = Path(extracted_dir)
+                                    try:
+                                        mineru_base = Path("data/processed/mineru")
+                                        if extracted_path.is_absolute():
+                                            parts = extracted_path.parts
+                                            for j, part in enumerate(parts):
+                                                if part == "mineru" and j + 2 < len(parts):
+                                                    relative_path = Path(*parts[j + 1 :])
+                                                    break
+                                            else:
+                                                relative_path = (
+                                                    Path(extracted_path.parent.name)
+                                                    / extracted_path.name
+                                                )
+                                        else:
+                                            relative_path = extracted_path.relative_to(mineru_base)
+                                    except ValueError:
+                                        relative_path = (
+                                            Path(extracted_path.parent.name)
+                                            / extracted_path.name
+                                        )
+
+                                    cached_clean_md = self.output_dir / relative_path / "clean.md"
+                                    if cached_clean_md.exists() and cached_clean_md.stat().st_size > 0:
+                                        try:
+                                            cached_content = cached_clean_md.read_text(
+                                                encoding="utf-8"
+                                            )
+                                            doc.page_content = cached_content
+                                            doc.metadata.update(
+                                                {
+                                                    "cleaned": True,
+                                                    "cache_hit": True,
+                                                    "cached_clean_md": str(cached_clean_md),
+                                                }
+                                            )
+                                            used_cache = True
+                                        except Exception as e:
+                                            logger.warning(
+                                                "读取缓存clean.md失败，将回退LLM清洗: %s (error=%s)",
+                                                cached_clean_md,
+                                                e,
+                                            )
+
+                            if used_cache:
+                                logger.info(
+                                    "检测到clean.md缓存命中，跳过LLM广告清洗: %s",
+                                    file_path,
+                                )
+                                pipeline_name = "cached_clean_md"
+                            else:
+                                ad_remover = LLMAdRemover(llm_service=self.llm_service)
+                                cleaned_documents = []
+                                for i, doc in enumerate(documents):
+                                    try:
+                                        logger.info(
+                                            "开始清洗文档 %d/%d (文件: %s): %s",
+                                            i + 1,
+                                            len(documents),
+                                            file_path,
+                                            doc.metadata.get("source", "unknown"),
+                                        )
+                                        # 逐个提交每个Document,避免上下文过长
+                                        cleaned_doc = ad_remover.clean_document(doc)
+                                        cleaned_documents.append(cleaned_doc)
+                                        logger.info(
+                                            "完成清洗文档 %d/%d (文件: %s): %s",
+                                            i + 1,
+                                            len(documents),
+                                            file_path,
+                                            doc.metadata.get("source", "unknown"),
+                                        )
+                                    except Exception as e:
+                                        logger.warning(
+                                            f"清洗文档 {i + 1}/{len(documents)} (文件: {file_path}) 失败,保留原始文档: {e}"
+                                        )
+                                        cleaned_documents.append(doc)
+                                documents = cleaned_documents
+                                pipeline_name = "llm_ad_cleaning"
                         except Exception as e:
                             logger.warning(f"LLM清洗失败,跳过清洗步骤: {e}")
                             pipeline_name = "loader_only"
@@ -888,7 +1013,7 @@ class DocumentPreprocessor:
     async def aprocess_document(self, file_path: str) -> list[Document]:
         """异步处理单个文档(内部使用批量API)
 
-        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性。
+        注意:即使是单个文件,也统一使用批量上传API处理,确保接口一致性.
 
         Args:
             file_path: 文档路径
@@ -905,7 +1030,7 @@ class DocumentPreprocessor:
     async def aprocess_documents(self, file_paths: list[str]) -> list[Document]:
         """异步批量处理文档(使用批量API一次性处理所有文件)
 
-        使用MinerU批量API一次性处理所有文件,避免重复上传。
+        使用MinerU批量API一次性处理所有文件,避免重复上传.
 
         Args:
             file_paths: 文档路径列表
@@ -1190,12 +1315,12 @@ class DocumentPreprocessor:
 
         遍历 data/processed/mineru 目录下的所有子目录,
         找到每个文档的 full.md 文件,清洗后保存为 clean.md,
-        并复制 images 目录和元数据文件。
+        并复制 images 目录和元数据文件.
 
         目录结构:
         - 输入:data/processed/mineru/{doc_name}/{extracted_dir}/full.md
         - 输出:data/cleaned/documents/{doc_name}/{extracted_dir}/clean.md
-        - 同时复制:images/ 目录、layout.json 等元数据文件
+        - 同时复制:images/ 目录,layout.json 等元数据文件
 
         Args:
             mineru_dir: MinerU 处理结果目录,默认为 'data/processed/mineru'
@@ -1349,8 +1474,8 @@ class DocumentPreprocessor:
     def _extract_text_content(self, markdown_content: str) -> set:
         """从清洗后的 Markdown 中提取所有文本内容片段
 
-        提取所有非空行作为文本片段,用于与 JSON 元数据匹配。
-        会去除 Markdown 语法标记,提取纯文本内容。
+        提取所有非空行作为文本片段,用于与 JSON 元数据匹配.
+        会去除 Markdown 语法标记,提取纯文本内容.
 
         Args:
             markdown_content: Markdown 文档内容
@@ -1374,7 +1499,7 @@ class DocumentPreprocessor:
             # 去除 Markdown 标题标记
             line = re.sub(r"^#+\s*", "", line)
 
-            # 去除加粗、斜体标记
+            # 去除加粗,斜体标记
             line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
             line = re.sub(r"\*(.+?)\*", r"\1", line)
 
@@ -1396,7 +1521,7 @@ class DocumentPreprocessor:
     def _text_matches_fragment(self, json_text: str, text_fragments: set) -> bool:
         """检查 JSON 中的文本是否在清洗后的文档中存在
 
-        使用子串匹配,因为 LLM 清洗可能会对文本进行微调。
+        使用子串匹配,因为 LLM 清洗可能会对文本进行微调.
 
         Args:
             json_text: JSON 元数据中的文本
@@ -1488,7 +1613,7 @@ class DocumentPreprocessor:
     ) -> list:
         """过滤 model.json,只保留清洗后文档中存在的内容
 
-        model.json 是二维数组,每页一个数组。
+        model.json 是二维数组,每页一个数组.
 
         Args:
             model_data: 原始 model.json 数据(二维数组)
@@ -1619,8 +1744,8 @@ class DocumentPreprocessor:
     ) -> None:
         """重构所有元数据 JSON 文件
 
-        根据清洗后的 Markdown 内容过滤 content_list.json、model.json、layout.json,
-        只保留文档中仍存在的内容块。
+        根据清洗后的 Markdown 内容过滤 content_list.json,model.json,layout.json,
+        只保留文档中仍存在的内容块.
 
         Args:
             extracted_path: 源文件目录路径

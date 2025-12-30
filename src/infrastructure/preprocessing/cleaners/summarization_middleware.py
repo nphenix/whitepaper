@@ -1,9 +1,9 @@
 """
 总结中间件
 
-用于处理超长文档,防止token溢出。当文档超过阈值时,自动触发总结流程。
+用于处理超长文档,防止token溢出.当文档超过阈值时,自动触发总结流程.
 
-本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符。
+本模块所有文本处理均使用UTF-8编码,确保正确处理中文和其他Unicode字符.
 
 生成命令: /speckit.implement T040B
 生成时间: 2025-12-18
@@ -41,8 +41,8 @@ class SummarizationMiddleware(AgentMiddleware):
     """
     总结中间件
 
-    用于处理超长文档,防止token溢出。当文档超过max_tokens阈值时,
-    自动触发总结流程,将超长文档分段总结后传递给下游处理。
+    用于处理超长文档,防止token溢出.当文档超过max_tokens阈值时,
+    自动触发总结流程,将超长文档分段总结后传递给下游处理.
 
     使用示例:
         ```python
@@ -525,7 +525,7 @@ class SummarizationMiddleware(AgentMiddleware):
 
         # 构建提示词
         system_prompt = self._get_summarization_prompt()
-        user_prompt = f"""请总结以下文档内容,保留关键信息、章节结构和图片链接。
+        user_prompt = f"""请总结以下文档内容,保留关键信息,章节结构和图片链接.
 
 **重要要求**:
 1. 保留所有图片链接信息(`![](images/xxx.jpg)`格式)
@@ -581,7 +581,7 @@ class SummarizationMiddleware(AgentMiddleware):
 
         # 构建提示词
         system_prompt = self._get_summarization_prompt()
-        user_prompt = f"""请总结以下文档内容,保留关键信息、章节结构和图片链接。
+        user_prompt = f"""请总结以下文档内容,保留关键信息,章节结构和图片链接.
 
 **重要要求**:
 1. 保留所有图片链接信息(`![](images/xxx.jpg)`格式)
@@ -647,19 +647,19 @@ class SummarizationMiddleware(AgentMiddleware):
         Returns:
             总结提示词字符串
         """
-        return """你是一个专业的文档总结助手,专门负责总结超长文档,保留关键信息。
+        return """你是一个专业的文档总结助手,专门负责总结超长文档,保留关键信息.
 
 **总结要求**:
 1. **保留所有图片链接**:必须保留所有图片链接信息(`![](images/xxx.jpg)`格式),即使图片本身被删除,链接信息也要保留
 2. **保留章节结构**:保留文档的章节标题和层次结构
-3. **保留关键信息**:保留重要的数据、观点、结论等关键信息
-4. **删除冗余内容**:删除重复描述、冗余说明等不必要的内容
+3. **保留关键信息**:保留重要的数据,观点,结论等关键信息
+4. **删除冗余内容**:删除重复描述,冗余说明等不必要的内容
 5. **保持逻辑连贯**:确保总结后的内容逻辑连贯,易于理解
 
 **输出要求**:
 - 直接输出总结后的Markdown文档
-- 不要添加任何说明、注释或解释
-- 保持文档格式完整、逻辑连贯
+- 不要添加任何说明,注释或解释
+- 保持文档格式完整,逻辑连贯
 - 确保所有图片链接信息都被保留"""
 
     def _log_summarization(
@@ -676,7 +676,7 @@ class SummarizationMiddleware(AgentMiddleware):
             request: 模型请求(可选,用于将信息存储到state中)
 
         Returns:
-            摘要元数据字典,包含是否摘要、摘要前后长度、触发原因等信息
+            摘要元数据字典,包含是否摘要,摘要前后长度,触发原因等信息
         """
         compression_ratio = (
             (1 - summarized_length / original_length) * 100
@@ -760,8 +760,8 @@ class SummarizationHelper:
     """
     总结辅助类
 
-    用于在直接模型调用场景下(非Agent框架)使用总结功能。
-    可以在LLMAdRemover等直接调用模型的组件中使用。
+    用于在直接模型调用场景下(非Agent框架)使用总结功能.
+    可以在LLMAdRemover等直接调用模型的组件中使用.
     """
 
     def __init__(

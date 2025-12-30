@@ -5,14 +5,14 @@
 """
 增强的实体关系提取器 (T054)
 
-该模块作为T049知识图谱构建器的增强插件，提供以下增强功能：
-1. Few-shot Learning支持：提供示例引导LLM理解任务
-2. 混合提取方法：LLM + spaCy NER混合提取
-3. 质量保证机制：提取结果验证、一致性检查、置信度评估
+该模块作为T049知识图谱构建器的增强插件,提供以下增强功能:
+1. Few-shot Learning支持:提供示例引导LLM理解任务
+2. 混合提取方法:LLM + spaCy NER混合提取
+3. 质量保证机制:提取结果验证,一致性检查,置信度评估
 
 设计目标:
-- 作为T049的增强插件，提供互补功能
-- 可以独立使用，也可以与T049配合使用
+- 作为T049的增强插件,提供互补功能
+- 可以独立使用,也可以与T049配合使用
 - 支持领域特定的Few-shot示例库
 - 实现混合提取方法提升准确率
 - 提供质量保证机制确保提取质量
@@ -26,9 +26,7 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -56,10 +54,10 @@ except ImportError:  # pragma: no cover
     BaseNode = Any  # type: ignore[assignment, misc]
     LLAMA_INDEX_AVAILABLE = False
 
-# spaCy导入（可选）
+# spaCy导入(可选)
 try:
     import spacy
-    from spacy import displacy
+    # from spacy import displacy
     SPACY_AVAILABLE = True
 except ImportError:  # pragma: no cover
     SPACY_AVAILABLE = False
@@ -76,7 +74,7 @@ class ValidationResult(BaseModel):
     errors: list[str] = Field(default_factory=list, description="验证错误列表")
     warnings: list[str] = Field(default_factory=list, description="验证警告列表")
     confidence_score: float = Field(
-        default=1.0, description="置信度分数（0.0-1.0）"
+        default=1.0, description="置信度分数(0.0-1.0)"
     )
 
 
@@ -87,14 +85,14 @@ class FewShotExample:
     text: str
     entities: list[dict[str, Any]]
     relations: list[dict[str, Any]]
-    domain: str | None = None  # 领域标识（如"energy_storage"）
+    domain: str | None = None  # 领域标识(如"energy_storage")
 
 
 class EnhancedEntityRelationExtractor:
     """
     增强的实体关系提取器
 
-    提供Few-shot Learning、混合提取方法（LLM + spaCy NER）、质量验证等增强功能。
+    提供Few-shot Learning,混合提取方法(LLM + spaCy NER),质量验证等增强功能.
 
     典型用法:
         >>> extractor = EnhancedEntityRelationExtractor(
@@ -120,17 +118,20 @@ class EnhancedEntityRelationExtractor:
 
         Args:
             few_shot_examples_path: Few-shot示例库JSON文件路径
-            domain: 领域标识（如"energy_storage"），用于加载领域特定示例
-            llm_service: LLM服务，如果为None则使用全局实例
+            domain: 领域标识(如"energy_storage"),用于加载领域特定示例
+            llm_service: LLM服务,如果为None则使用全局实例
             enable_spacy: 是否启用spaCy NER验证
-            spacy_model: spaCy模型名称（默认中文模型）
+            spacy_model: spaCy模型名称(默认中文模型)
             max_entities_per_chunk: 每个块最多提取的实体数量
             max_relations_per_chunk: 每个块最多提取的关系数量
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use EnhancedEntityRelationExtractor."
+            )
+            raise ImportError(
+                msg
             )
 
         self.llm_service = llm_service or get_llm_service()
@@ -143,7 +144,7 @@ class EnhancedEntityRelationExtractor:
         if few_shot_examples_path:
             self._load_few_shot_examples(few_shot_examples_path, domain)
 
-        # 初始化spaCy（如果启用）
+        # 初始化spaCy(如果启用)
         self.enable_spacy = enable_spacy and SPACY_AVAILABLE
         self.spacy_nlp = None
         if self.enable_spacy:
@@ -152,7 +153,7 @@ class EnhancedEntityRelationExtractor:
                 logger.info("spaCy模型加载成功: %s", spacy_model)
             except OSError:
                 logger.warning(
-                    "spaCy模型 %s 未安装，NER验证将被禁用。"
+                    "spaCy模型 %s 未安装,NER验证将被禁用."
                     "请运行: python -m spacy download %s",
                     spacy_model,
                     spacy_model,
@@ -178,7 +179,7 @@ class EnhancedEntityRelationExtractor:
 
         Args:
             examples_path: 示例库JSON文件路径
-            domain: 领域标识，用于过滤示例
+            domain: 领域标识,用于过滤示例
         """
         try:
             path = Path(examples_path)
@@ -186,7 +187,7 @@ class EnhancedEntityRelationExtractor:
                 logger.warning("Few-shot示例库文件不存在: %s", examples_path)
                 return
 
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
 
             # 解析示例数据
@@ -224,19 +225,19 @@ class EnhancedEntityRelationExtractor:
         node: BaseNode | None = None,
     ) -> list[ExtractedEntity]:
         """
-        使用混合方法提取实体（LLM + spaCy NER）
+        使用混合方法提取实体(LLM + spaCy NER)
 
         Args:
             text: 文本内容
-            node: LlamaIndex Node对象（可选）
+            node: LlamaIndex Node对象(可选)
 
         Returns:
             提取的实体列表
         """
-        # 1. 使用LLM提取实体（带Few-shot示例）
+        # 1. 使用LLM提取实体(带Few-shot示例)
         llm_entities = self._extract_entities_with_llm(text, node)
 
-        # 2. 使用spaCy NER提取实体（如果启用）
+        # 2. 使用spaCy NER提取实体(如果启用)
         spacy_entities = []
         if self.enable_spacy and self.spacy_nlp:
             spacy_entities = self._extract_entities_with_spacy(text)
@@ -267,7 +268,7 @@ class EnhancedEntityRelationExtractor:
         Args:
             text: 文本内容
             entities: 已提取的实体列表
-            node: LlamaIndex Node对象（可选）
+            node: LlamaIndex Node对象(可选)
 
         Returns:
             提取的关系列表
@@ -275,7 +276,7 @@ class EnhancedEntityRelationExtractor:
         if not entities or len(entities) < 2:
             return []
 
-        # 1. 使用LLM提取关系（带Few-shot示例）
+        # 1. 使用LLM提取关系(带Few-shot示例)
         relations = self._extract_relations_with_llm(text, entities, node)
 
         # 2. 质量验证
@@ -294,7 +295,7 @@ class EnhancedEntityRelationExtractor:
         text: str,
         node: BaseNode | None = None,
     ) -> list[ExtractedEntity]:
-        """使用LLM提取实体（带Few-shot示例）"""
+        """使用LLM提取实体(带Few-shot示例)"""
         # 构建带Few-shot示例的提示词
         prompt = self._build_entity_extraction_prompt_with_fewshot(text)
 
@@ -307,7 +308,7 @@ class EnhancedEntityRelationExtractor:
 
             messages = [
                 SystemMessage(
-                    content="你是一个专业的实体提取助手，能够从文本中准确提取实体信息。"
+                    content="你是一个专业的实体提取助手,能够从文本中准确提取实体信息."
                 ),
                 HumanMessage(content=prompt),
             ]
@@ -409,11 +410,11 @@ class EnhancedEntityRelationExtractor:
         """
         融合LLM和spaCy的提取结果
 
-        策略：
-        1. 优先使用LLM提取的实体（更准确）
+        策略:
+        1. 优先使用LLM提取的实体(更准确)
         2. 使用spaCy结果验证和补充
-        3. 对于LLM提取但spaCy未识别的实体，降低置信度
-        4. 对于spaCy识别但LLM未提取的实体，作为补充（降低置信度）
+        3. 对于LLM提取但spaCy未识别的实体,降低置信度
+        4. 对于spaCy识别但LLM未提取的实体,作为补充(降低置信度)
         """
         if not spacy_entities:
             return llm_entities
@@ -424,24 +425,24 @@ class EnhancedEntityRelationExtractor:
 
         merged_entities = []
 
-        # 1. 添加LLM提取的实体（优先）
+        # 1. 添加LLM提取的实体(优先)
         for entity in llm_entities:
             entity_lower = entity.name.lower()
             # 检查spaCy是否也识别了这个实体
             if entity_lower in spacy_entity_map:
-                # 两者都识别，提高置信度
+                # 两者都识别,提高置信度
                 entity.confidence = min(1.0, entity.confidence + 0.1)
             else:
-                # LLM识别但spaCy未识别，稍微降低置信度
+                # LLM识别但spaCy未识别,稍微降低置信度
                 entity.confidence = max(0.5, entity.confidence - 0.1)
 
             merged_entities.append(entity)
 
-        # 2. 添加spaCy识别但LLM未提取的实体（作为补充）
+        # 2. 添加spaCy识别但LLM未提取的实体(作为补充)
         for entity in spacy_entities:
             entity_lower = entity.name.lower()
             if entity_lower not in llm_entity_map:
-                # spaCy识别但LLM未提取，降低置信度
+                # spaCy识别但LLM未提取,降低置信度
                 entity.confidence = 0.6
                 merged_entities.append(entity)
 
@@ -453,7 +454,7 @@ class EnhancedEntityRelationExtractor:
         entities: list[ExtractedEntity],
         node: BaseNode | None = None,
     ) -> list[ExtractedRelation]:
-        """使用LLM提取关系（带Few-shot示例）"""
+        """使用LLM提取关系(带Few-shot示例)"""
         # 构建带Few-shot示例的提示词
         entity_names = [e.name for e in entities]
         prompt = self._build_relation_extraction_prompt_with_fewshot(
@@ -469,7 +470,7 @@ class EnhancedEntityRelationExtractor:
 
             messages = [
                 SystemMessage(
-                    content="你是一个专业的关系提取助手，能够从文本中准确提取实体之间的关系。"
+                    content="你是一个专业的关系提取助手,能够从文本中准确提取实体之间的关系."
                 ),
                 HumanMessage(content=prompt),
             ]
@@ -533,24 +534,24 @@ class EnhancedEntityRelationExtractor:
                 few_shot_section += f"文本: {example.text[:200]}...\n"
                 few_shot_section += f"提取的实体: {json.dumps(example.entities, ensure_ascii=False, indent=2)}\n"
 
-        return f"""请从以下文本中提取所有实体。
+        return f"""请从以下文本中提取所有实体.
 
 要求:
-1. 识别所有实体，包括人物、组织机构、概念、事件、地点、时间等
-2. 对于储能产业相关文本，优先识别储能产业特定实体类型（如储能技术、储能设备、储能项目等）
+1. 识别所有实体,包括人物,组织机构,概念,事件,地点,时间等
+2. 对于储能产业相关文本,优先识别储能产业特定实体类型(如储能技术,储能设备,储能项目等)
 3. 每个实体包含以下信息:
-   - name: 实体名称（必填）
-   - type: 实体类型（必填，从以下类型中选择: {entity_types}）
-   - description: 实体描述（可选）
-   - aliases: 实体别名列表（可选）
-   - properties: 扩展属性（可选，JSON格式）
-   - confidence: 提取置信度（0.0-1.0，默认1.0）
+   - name: 实体名称(必填)
+   - type: 实体类型(必填,从以下类型中选择: {entity_types})
+   - description: 实体描述(可选)
+   - aliases: 实体别名列表(可选)
+   - properties: 扩展属性(可选,JSON格式)
+   - confidence: 提取置信度(0.0-1.0,默认1.0)
 
 4. 最多提取 {self.max_entities_per_chunk} 个实体
 
 {few_shot_section}
 
-输出格式（JSON）:
+输出格式(JSON):
 {{
   "entities": [
     {{
@@ -567,7 +568,7 @@ class EnhancedEntityRelationExtractor:
 文本内容:
 {text}
 
-请直接输出JSON格式，不要包含其他说明文字。"""
+请直接输出JSON格式,不要包含其他说明文字."""
 
     def _build_relation_extraction_prompt_with_fewshot(
         self,
@@ -587,7 +588,7 @@ class EnhancedEntityRelationExtractor:
                 few_shot_section += f"文本: {example.text[:200]}...\n"
                 few_shot_section += f"提取的关系: {json.dumps(example.relations, ensure_ascii=False, indent=2)}\n"
 
-        return f"""请从以下文本中提取实体之间的关系。
+        return f"""请从以下文本中提取实体之间的关系.
 
 已识别的实体: {entity_list}
 
@@ -595,17 +596,17 @@ class EnhancedEntityRelationExtractor:
 1. 识别所有实体对之间的关系
 2. 关系类型从以下类型中选择: {relation_types}
 3. 每个关系包含以下信息:
-   - source: 源实体名称（必填）
-   - target: 目标实体名称（必填）
-   - relation: 关系类型（必填）
-   - description: 关系描述（可选）
-   - confidence: 提取置信度（0.0-1.0，默认1.0）
+   - source: 源实体名称(必填)
+   - target: 目标实体名称(必填)
+   - relation: 关系类型(必填)
+   - description: 关系描述(可选)
+   - confidence: 提取置信度(0.0-1.0,默认1.0)
 
 4. 最多提取 {self.max_relations_per_chunk} 个关系
 
 {few_shot_section}
 
-输出格式（JSON）:
+输出格式(JSON):
 {{
   "relations": [
     {{
@@ -621,10 +622,10 @@ class EnhancedEntityRelationExtractor:
 文本内容:
 {text}
 
-请直接输出JSON格式，不要包含其他说明文字。"""
+请直接输出JSON格式,不要包含其他说明文字."""
 
     def _parse_entities_from_text(self, text: str) -> list[dict[str, Any]]:
-        """从文本中解析实体（降级方案）"""
+        """从文本中解析实体(降级方案)"""
         # 首先尝试直接解析整个文本
         try:
             result = json.loads(text.strip())
@@ -659,7 +660,7 @@ class EnhancedEntityRelationExtractor:
         return []
 
     def _parse_relations_from_text(self, text: str) -> list[dict[str, Any]]:
-        """从文本中解析关系（降级方案）"""
+        """从文本中解析关系(降级方案)"""
         # 首先尝试直接解析整个文本
         try:
             result = json.loads(text.strip())
@@ -712,7 +713,7 @@ class EnhancedEntityRelationExtractor:
         for entity in entities:
             # 1. 实体名称合理性检查
             if not entity.name or len(entity.name.strip()) == 0:
-                errors.append(f"实体名称为空")
+                errors.append("实体名称为空")
                 continue
 
             if len(entity.name) > 100:
@@ -721,6 +722,7 @@ class EnhancedEntityRelationExtractor:
             # 2. 实体类型验证
             if not isinstance(entity.entity_type, (EntityType, str)):
                 errors.append(f"实体类型无效: {entity.name}")
+                continue
 
             # 3. 置信度检查
             if entity.confidence < 0.0 or entity.confidence > 1.0:
@@ -764,7 +766,7 @@ class EnhancedEntityRelationExtractor:
         warnings = []
         confidence_scores = []
 
-        # 创建实体名称集合（用于快速查找）
+        # 创建实体名称集合(用于快速查找)
         entity_names = {e.name for e in entities}
 
         for relation in relations:
@@ -778,15 +780,18 @@ class EnhancedEntityRelationExtractor:
                 errors.append(
                     f"关系的源实体不存在: {relation.source_entity}"
                 )
+                continue
 
             if relation.target_entity not in entity_names:
                 errors.append(
                     f"关系的目标实体不存在: {relation.target_entity}"
                 )
+                continue
 
             # 3. 关系类型一致性检查
             if not isinstance(relation.relation_type, (RelationType, str)):
                 errors.append(f"关系类型无效: {relation.relation_type}")
+                continue
 
             # 4. 置信度检查
             if relation.confidence < 0.0 or relation.confidence > 1.0:
@@ -818,7 +823,7 @@ class EnhancedEntityRelationExtractor:
         relations: list[ExtractedRelation],
     ) -> ValidationResult:
         """
-        验证完整的提取结果（实体+关系）
+        验证完整的提取结果(实体+关系)
 
         Args:
             entities: 提取的实体列表
@@ -854,7 +859,7 @@ class EnhancedKnowledgeGraphBuilder(KnowledgeGraphBuilder):
     """
     增强的知识图谱构建器
 
-    继承T049的KnowledgeGraphBuilder，集成T054的增强功能：
+    继承T049的KnowledgeGraphBuilder,集成T054的增强功能:
     - Few-shot Learning支持
     - spaCy NER混合提取
     - 质量验证机制
@@ -873,7 +878,7 @@ class EnhancedKnowledgeGraphBuilder(KnowledgeGraphBuilder):
     def __init__(
         self,
         graph_name: str = "knowledge_graph",
-        graph_adapter=None,  # NetworkXAdapter类型，避免循环导入
+        graph_adapter: Any = None,  # NetworkXAdapter类型,避免循环导入
         llm_service: LLMService | None = None,
         max_entities_per_chunk: int = 10,
         max_relations_per_chunk: int = 10,
@@ -886,15 +891,15 @@ class EnhancedKnowledgeGraphBuilder(KnowledgeGraphBuilder):
         初始化增强的知识图谱构建器
 
         Args:
-            graph_name: 图名称，用于标识不同的知识图谱
-            graph_adapter: NetworkX适配器，如果为None则创建新实例
-            llm_service: LLM服务，如果为None则使用全局实例
+            graph_name: 图名称,用于标识不同的知识图谱
+            graph_adapter: NetworkX适配器,如果为None则创建新实例
+            llm_service: LLM服务,如果为None则使用全局实例
             max_entities_per_chunk: 每个块最多提取的实体数量
             max_relations_per_chunk: 每个块最多提取的关系数量
             few_shot_examples_path: Few-shot示例库JSON文件路径
-            domain: 领域标识（如"energy_storage"），用于加载领域特定示例
+            domain: 领域标识(如"energy_storage"),用于加载领域特定示例
             enable_spacy: 是否启用spaCy NER验证
-            spacy_model: spaCy模型名称（默认中文模型）
+            spacy_model: spaCy模型名称(默认中文模型)
         """
         # 调用父类初始化
         super().__init__(
@@ -928,7 +933,7 @@ class EnhancedKnowledgeGraphBuilder(KnowledgeGraphBuilder):
         node: BaseNode,
     ) -> tuple[list[ExtractedEntity], list[ExtractedRelation]]:
         """
-        从单个Node中提取实体和关系（使用增强提取器）
+        从单个Node中提取实体和关系(使用增强提取器)
 
         Args:
             node: LlamaIndex Node对象

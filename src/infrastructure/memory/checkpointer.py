@@ -1,15 +1,15 @@
 """LangGraph Checkpointer 配置模块
 
-提供工作记忆管理能力, 支持Agent执行状态的持久化与恢复。
-基于LangGraph的Checkpointer实现。
+提供工作记忆管理能力, 支持Agent执行状态的持久化与恢复.
+基于LangGraph的Checkpointer实现.
 
-注意: 此模块为可选组件, 主要用于需要工作流状态持久化的场景。
-如果使用纯LCEL链(如T018), 可能不需要此模块。
+注意: 此模块为可选组件, 主要用于需要工作流状态持久化的场景.
+如果使用纯LCEL链(如T018), 可能不需要此模块.
 
 主要功能:
 - Agent执行状态的持久化存储
 - 支持工作流恢复和断点续传
-- 支持多种存储后端(内存、SQLite)
+- 支持多种存储后端(内存,SQLite)
 - 线程安全的检查点管理
 - 检查点历史追踪和版本管理
 
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 class CheckpointerConfig:
     """Checkpointer配置类
 
-    从应用配置中读取checkpointer相关配置。
+    从应用配置中读取checkpointer相关配置.
     """
 
     def __init__(self, config: AppConfig | None = None) -> None:
@@ -63,8 +63,8 @@ class CheckpointerConfig:
 class CheckpointerManager:
     """Checkpointer管理器
 
-    提供统一的Checkpointer创建和管理接口。
-    支持多种存储后端的创建和配置。
+    提供统一的Checkpointer创建和管理接口.
+    支持多种存储后端的创建和配置.
 
     Examples:
         >>> # 创建内存存储(适用于测试)
@@ -253,15 +253,15 @@ class CheckpointerManager:
     def create_default_saver(self) -> BaseCheckpointSaver:
         """创建默认checkpointer
 
-        根据配置自动选择合适的存储后端。
+        根据配置自动选择合适的存储后端.
 
         配置优先级:
         1. checkpoint_type == 'memory' -> MemorySaver
         2. checkpoint_type == 'sqlite' -> SqliteSaver
         3. 默认 -> MemorySaver (用于测试)
 
-        注意: 对于SQLite存储, 此方法返回的saver持有数据库连接。
-        使用完毕后必须调用manager.cleanup()释放资源, 或使用上下文管理器版本。
+        注意: 对于SQLite存储, 此方法返回的saver持有数据库连接.
+        使用完毕后必须调用manager.cleanup()释放资源, 或使用上下文管理器版本.
 
         Returns:
             BaseCheckpointSaver实例
@@ -324,8 +324,8 @@ class CheckpointerManager:
     def cleanup(self) -> None:
         """清理资源
 
-        关闭数据库连接等资源。
-        建议在应用关闭时调用。
+        关闭数据库连接等资源.
+        建议在应用关闭时调用.
         """
         if self._sqlite_connection:
             try:
@@ -343,7 +343,7 @@ class CheckpointerManager:
 class CheckpointerHelper:
     """Checkpointer辅助工具类
 
-    提供检查点管理的辅助功能。
+    提供检查点管理的辅助功能.
     """
 
     @staticmethod
@@ -353,7 +353,7 @@ class CheckpointerHelper:
         """通过 API 方法清理过期的检查点
 
         当无法直接从数据库查询时间时,使用此方法通过 list() API 获取所有
-        checkpoint 并手动过滤删除。
+        checkpoint 并手动过滤删除.
 
         Args:
             saver: SqliteSaver实例

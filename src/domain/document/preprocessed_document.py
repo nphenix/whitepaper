@@ -1,7 +1,7 @@
 """
 预处理文档领域模型
 
-该模块定义了预处理后的文档领域模型, 包括清洗后的内容、处理信息和验证规则。
+该模块定义了预处理后的文档领域模型, 包括清洗后的内容,处理信息和验证规则.
 """
 
 # 生成命令: /speckit.implement T024
@@ -31,16 +31,16 @@ class ProcessingStatus(str, Enum):
 class CleaningLevel(str, Enum):
     """清洗级别枚举"""
 
-    BASIC = "basic"  # 基础清洗: 去除多余空白、标准化格式
-    STANDARD = "standard"  # 标准清洗: 基础清洗 + 去除噪声、标准化特殊字符
-    DEEP = "deep"  # 深度清洗: 标准清洗 + 语义清洗、结构优化
+    BASIC = "basic"  # 基础清洗: 去除多余空白,标准化格式
+    STANDARD = "standard"  # 标准清洗: 基础清洗 + 去除噪声,标准化特殊字符
+    DEEP = "deep"  # 深度清洗: 标准清洗 + 语义清洗,结构优化
 
 
 class PreprocessedDocument(BaseModel):
     """
     预处理文档领域模型
 
-    表示经过预处理和清洗后的文档, 包含处理后的内容和相关元数据。
+    表示经过预处理和清洗后的文档, 包含处理后的内容和相关元数据.
     """
 
     # 基本字段

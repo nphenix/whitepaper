@@ -1,0 +1,559 @@
+"""
+OpenAI SDK 到 LangChain 的适配器
+
+将 OpenAI SDK 包装为 LangChain 兼容的 BaseLanguageModel,
+解决 LangChain ChatOpenAI 在某些 API 端点（如火山引擎）上的 URL 构建问题.
+
+使用场景:
+- 当 LangChain ChatOpenAI 的 URL 构建逻辑与 API 提供商不兼容时
+- 需要更精确控制 API 调用时
+- OpenAI SDK 已验证可以正常工作，但 LangChain 失败时
+"""
+
+from typing import Any, Iterator
+
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage, AIMessage, AIMessageChunk
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+
+from src.shared.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class OpenAISDKAdapter(BaseChatModel):
+    """OpenAI SDK 的 LangChain 适配器
+
+    将 OpenAI SDK 包装为 LangChain 兼容的 BaseLanguageModel,
+    解决 LangChain ChatOpenAI 在某些 API 端点上的 URL 构建问题.
+
+    优势:
+    - 使用 OpenAI SDK，已验证可以正常工作
+    - 精确控制 API 调用和 URL 构建
+    - 完全兼容 LangChain BaseLanguageModel 接口
+    """
+
+    def __init__(
+        self,
+        model_name: str,
+        temperature: float,
+        max_tokens: int,
+        api_key: str,
+        base_url: str,
+        timeout: float = 60.0,
+        **kwargs,
+    ):
+        """初始化 OpenAI SDK 适配器
+
+        Args:
+            model_name: 模型名称
+            temperature: 温度参数
+            max_tokens: 最大 token 数
+            api_key: API 密钥
+            base_url: API 基础 URL（完整路径，包括 /endpoints 等）
+            timeout: 超时时间（秒）
+            **kwargs: 其他参数
+        """
+        super().__init__()
+        
+        from openai import OpenAI
+        
+        # 使用 object.__setattr__ 绕过 Pydantic 的字段验证
+        # 这些属性不应该是 Pydantic 字段，而是内部状态
+        object.__setattr__(self, "_model_name", model_name)
+        object.__setattr__(self, "_temperature", temperature)
+        object.__setattr__(self, "_max_tokens", max_tokens)
+        object.__setattr__(self, "_api_key", api_key)
+        object.__setattr__(self, "_base_url", base_url)
+        object.__setattr__(self, "_timeout", timeout)
+        
+        # 创建 OpenAI 客户端（已验证可以正常工作）
+        object.__setattr__(
+            self,
+            "_client",
+            OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+            ),
+        )
+        
+        logger.info(
+            "创建OpenAI SDK适配器: model=%s, base_url=%s, timeout=%.1f秒",
+            model_name,
+            base_url,
+            timeout,
+        )
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """生成响应（同步）
+
+        Args:
+            messages: LangChain 消息列表
+            stop: 停止词列表
+            run_manager: 运行管理器
+            **kwargs: 其他参数
+
+        Returns:
+            LangChain LLMResult
+        """
+        try:
+            # 转换 LangChain 消息格式为 OpenAI SDK 格式
+            openai_messages = self._convert_messages(messages)
+            
+            # 验证转换后的消息不为空
+            if not openai_messages:
+                error_msg = f"消息转换后为空，原始消息数量: {len(messages)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            logger.debug(
+                "消息转换完成: 原始消息数=%d, 转换后消息数=%d",
+                len(messages),
+                len(openai_messages),
+            )
+            
+            # 构建请求参数
+            request_params = {
+                "model": self._model_name,
+                "messages": openai_messages,
+                "temperature": self._temperature,
+                "max_tokens": self._max_tokens,
+            }
+            
+            # 添加停止词（如果提供）
+            if stop:
+                request_params["stop"] = stop
+            
+            # GLM-4.6V 特殊处理：检查是否需要添加 thinking 参数
+            # 如果模型名称包含 "glm-4" 或 "glm_4"，且 kwargs 中包含 enable_thinking
+            if ("glm-4" in self._model_name.lower() or "glm_4" in self._model_name.lower()):
+                # 如果 kwargs 中明确指定了 thinking 参数，使用它
+                if "thinking" in kwargs:
+                    request_params["thinking"] = kwargs["thinking"]
+                # 否则，如果 enable_thinking 为 True，添加默认的 thinking 参数
+                elif kwargs.get("enable_thinking", False):
+                    request_params["thinking"] = {"type": "enabled"}
+            
+            # 合并其他参数（但排除已处理的 thinking 相关参数和 LangChain 内部参数）
+            # LangChain 可能会传递一些内部参数，这些参数不应该传递给 API
+            excluded_params = {
+                "thinking", "enable_thinking",
+                "run_name", "run_id", "tags", "metadata",  # LangChain 内部参数
+                "callbacks", "callback_manager",  # LangChain 回调参数
+            }
+            other_kwargs = {k: v for k, v in kwargs.items() 
+                           if k not in excluded_params}
+            
+            # 记录被排除的参数（用于调试）
+            excluded = {k: v for k, v in kwargs.items() if k in excluded_params}
+            if excluded:
+                logger.debug("排除的参数（不会传递给API）: %s", list(excluded.keys()))
+            
+            # 记录将要传递的其他参数（用于调试）
+            if other_kwargs:
+                logger.debug("额外的请求参数: %s", list(other_kwargs.keys()))
+            
+            request_params.update(other_kwargs)
+            
+            # 调用 OpenAI SDK
+            logger.debug(
+                "调用OpenAI SDK: model=%s, base_url=%s, messages=%d, params=%s",
+                self._model_name,
+                self._base_url,
+                len(openai_messages),
+                list(request_params.keys()),
+            )
+            
+            # 记录多模态消息的详细信息（用于调试）
+            for i, msg in enumerate(openai_messages):
+                if isinstance(msg.get("content"), list):
+                    logger.debug(
+                        "多模态消息[%d]: role=%s, content_items=%d",
+                        i,
+                        msg.get("role"),
+                        len(msg.get("content", [])),
+                    )
+                    for j, item in enumerate(msg.get("content", [])):
+                        if isinstance(item, dict):
+                            item_type = item.get("type", "unknown")
+                            if item_type == "image_url":
+                                image_url = item.get("image_url", {}).get("url", "")
+                                # 只记录URL的前100个字符，避免日志过长
+                                url_preview = image_url[:100] + "..." if len(image_url) > 100 else image_url
+                                logger.debug(
+                                    "  内容项[%d]: type=%s, url_length=%d, url_preview=%s",
+                                    j,
+                                    item_type,
+                                    len(image_url),
+                                    url_preview,
+                                )
+                            else:
+                                text_preview = str(item.get("text", ""))[:100]
+                                logger.debug(
+                                    "  内容项[%d]: type=%s, text_preview=%s",
+                                    j,
+                                    item_type,
+                                    text_preview,
+                                )
+            
+            # 记录完整的请求参数结构（不记录敏感内容）
+            logger.debug(
+                "请求参数: model=%s, temperature=%s, max_tokens=%s, messages_count=%d",
+                request_params.get("model"),
+                request_params.get("temperature"),
+                request_params.get("max_tokens"),
+                len(request_params.get("messages", [])),
+            )
+            
+            # 记录完整的请求参数（用于调试，但不记录敏感信息）
+            logger.debug(
+                "准备调用 OpenAI SDK: model=%s, base_url=%s, request_params_keys=%s",
+                self._model_name,
+                self._base_url,
+                list(request_params.keys()),
+            )
+            
+            # 记录消息的完整结构（用于调试）
+            for i, msg in enumerate(openai_messages):
+                logger.debug(
+                    "消息[%d]: role=%s, content_type=%s",
+                    i,
+                    msg.get("role"),
+                    type(msg.get("content")).__name__,
+                )
+                if isinstance(msg.get("content"), list):
+                    for j, item in enumerate(msg.get("content", [])):
+                        logger.debug(
+                            "  内容项[%d]: %s",
+                            j,
+                            {k: (v[:50] + "..." if isinstance(v, str) and len(v) > 50 else v) 
+                             for k, v in item.items() if k != "image_url" or not isinstance(v, dict) or "url" not in v or len(v.get("url", "")) < 100}
+                        )
+            
+            try:
+                response = self._client.chat.completions.create(**request_params)
+            except Exception as api_error:
+                # 记录请求参数的详细信息（用于调试API错误）
+                import json
+                request_debug = {
+                    "model": request_params.get("model"),
+                    "temperature": request_params.get("temperature"),
+                    "max_tokens": request_params.get("max_tokens"),
+                    "messages_count": len(request_params.get("messages", [])),
+                    "has_stop": "stop" in request_params,
+                }
+                # 记录消息结构（不记录实际内容，但记录前100个字符用于调试）
+                messages_debug = []
+                for msg in request_params.get("messages", []):
+                    msg_debug = {"role": msg.get("role")}
+                    content = msg.get("content")
+                    if isinstance(content, str):
+                        msg_debug["content_type"] = "string"
+                        msg_debug["content_length"] = len(content)
+                        msg_debug["content_preview"] = content[:100]  # 记录前100个字符用于调试
+                    elif isinstance(content, list):
+                        msg_debug["content_type"] = "list"
+                        msg_debug["items"] = []
+                        for item in content:
+                            if isinstance(item, dict):
+                                item_type = item.get("type", "unknown")
+                                item_info = {"type": item_type}
+                                if item_type == "image_url":
+                                    url = item.get("image_url", {}).get("url", "")
+                                    item_info["url_length"] = len(url)
+                                    item_info["url_starts_with"] = url[:50] if url else ""
+                                elif item_type == "text":
+                                    text = item.get("text", "")
+                                    item_info["text_length"] = len(text)
+                                    item_info["text_preview"] = text[:100]  # 记录前100个字符用于调试
+                                msg_debug["items"].append(item_info)
+                        messages_debug.append(msg_debug)
+                request_debug["messages"] = messages_debug
+                
+                logger.error(
+                    "API调用失败，请求详情: %s",
+                    json.dumps(request_debug, indent=2, ensure_ascii=False),
+                )
+                raise api_error  # 重新抛出原始异常
+            
+            # 转换响应为 LangChain 格式
+            if response.choices and len(response.choices) > 0:
+                content = response.choices[0].message.content or ""
+                message = AIMessage(content=content)
+                generation = ChatGeneration(message=message)
+                return ChatResult(generations=[generation])
+            else:
+                error_msg = "OpenAI API 返回空响应"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+                
+        except Exception as e:
+            # 记录详细的错误信息，包括请求参数（但不记录敏感信息）
+            error_details = {
+                "model": self._model_name,
+                "base_url": self._base_url,
+                "messages_count": len(openai_messages),
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            }
+            
+            # 记录消息结构（不记录实际内容）
+            message_structure = []
+            for msg in openai_messages:
+                msg_info = {"role": msg.get("role")}
+                content = msg.get("content")
+                if isinstance(content, str):
+                    msg_info["content_type"] = "string"
+                    msg_info["content_length"] = len(content)
+                elif isinstance(content, list):
+                    msg_info["content_type"] = "multimodal_list"
+                    msg_info["content_items"] = []
+                    for item in content:
+                        if isinstance(item, dict):
+                            item_type = item.get("type", "unknown")
+                            item_info = {"type": item_type}
+                            if item_type == "image_url":
+                                url = item.get("image_url", {}).get("url", "")
+                                item_info["url_length"] = len(url)
+                                item_info["url_prefix"] = url[:30] if url else ""
+                            elif item_type == "text":
+                                text = item.get("text", "")
+                                item_info["text_length"] = len(text)
+                            msg_info["content_items"].append(item_info)
+                message_structure.append(msg_info)
+            
+            error_details["message_structure"] = message_structure
+            logger.error(
+                "OpenAI SDK 调用失败: %s\n请求详情: %s",
+                e,
+                error_details,
+                exc_info=True,
+            )
+            raise
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """流式生成响应
+
+        Args:
+            messages: LangChain 消息列表
+            stop: 停止词列表
+            run_manager: 运行管理器
+            **kwargs: 其他参数
+
+        Yields:
+            LangChain GenerationChunk
+        """
+        try:
+            # 转换 LangChain 消息格式为 OpenAI SDK 格式
+            openai_messages = self._convert_messages(messages)
+            
+            # 构建请求参数
+            # 注意：GLM-4.6V 流式调用可能对 max_tokens 有更严格的限制
+            # 如果 max_tokens 超过 16384，记录警告但仍然使用配置值
+            max_tokens = self._max_tokens
+            if max_tokens > 16384:
+                logger.warning(
+                    "流式调用使用 max_tokens=%d，如果遇到 400 错误，请考虑降低到 16384 以内",
+                    max_tokens
+                )
+            
+            request_params = {
+                "model": self._model_name,
+                "messages": openai_messages,
+                "temperature": self._temperature,
+                "max_tokens": max_tokens,
+                "stream": True,  # 启用流式输出
+            }
+            
+            # 添加停止词（如果提供）
+            if stop:
+                request_params["stop"] = stop
+            
+            # 合并其他参数（但排除 LangChain 内部参数）
+            excluded_params = {
+                "run_name", "run_id", "tags", "metadata",  # LangChain 内部参数
+                "callbacks", "callback_manager",  # LangChain 回调参数
+            }
+            other_kwargs = {k: v for k, v in kwargs.items() 
+                           if k not in excluded_params}
+            request_params.update(other_kwargs)
+            
+            # 调用 OpenAI SDK 流式 API
+            logger.debug(
+                "调用OpenAI SDK流式API: model=%s, base_url=%s, messages=%d",
+                self._model_name,
+                self._base_url,
+                len(openai_messages),
+            )
+            
+            stream = self._client.chat.completions.create(**request_params)
+            
+            # 转换流式响应为 LangChain 格式
+            # 重要：ChatGenerationChunk.message 必须是 BaseMessageChunk（例如 AIMessageChunk），
+            # 不能是 AIMessage，否则会触发 Pydantic 校验错误。
+            for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta and delta.content:
+                        content = delta.content
+                        message_chunk = AIMessageChunk(content=content)
+                        generation_chunk = ChatGenerationChunk(message=message_chunk)
+                        
+                        # 通知运行管理器
+                        if run_manager:
+                            run_manager.on_llm_new_token(content)
+                            
+                        yield generation_chunk
+                        
+        except Exception as e:
+            logger.error("OpenAI SDK 流式调用失败: %s", e, exc_info=True)
+            raise
+
+    def _convert_messages(self, messages: list[BaseMessage]) -> list[dict[str, str]]:
+        """转换 LangChain 消息格式为 OpenAI SDK 格式
+
+        Args:
+            messages: LangChain 消息列表
+
+        Returns:
+            OpenAI SDK 消息列表
+        """
+        openai_messages = []
+        
+        for msg in messages:
+            if not isinstance(msg, BaseMessage):
+                continue
+                
+            # 转换消息类型
+            role_map = {
+                "system": "system",
+                "human": "user",
+                "ai": "assistant",
+                "assistant": "assistant",
+            }
+            
+            msg_type = msg.type
+            role = role_map.get(msg_type)
+            
+            if not role:
+                logger.warning("跳过不支持的消息类型: %s", msg_type)
+                continue
+            
+            # 获取消息内容
+            content = msg.content
+            if isinstance(content, str):
+                # 纯文本消息
+                message_content = content
+                openai_messages.append({
+                    "role": role,
+                    "content": message_content,
+                })
+            elif isinstance(content, list):
+                # 多模态消息（包含文本和图像）
+                # 需要转换为OpenAI SDK的多模态格式
+                multimodal_content = []
+                for item in content:
+                    if isinstance(item, str):
+                        # 文本内容
+                        multimodal_content.append({
+                            "type": "text",
+                            "text": item,
+                        })
+                    elif isinstance(item, dict):
+                        # 可能是图像URL或文本对象
+                        if "type" in item:
+                            # 已经是OpenAI格式（type: "text" 或 "image_url"）
+                            # 对于 GLM-4.6V，确保 image_url 格式正确
+                            if item.get("type") == "image_url":
+                                image_url_obj = item.get("image_url", {})
+                                # 如果 image_url 是字符串，需要转换为对象格式
+                                if isinstance(image_url_obj, str):
+                                    multimodal_content.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": image_url_obj},
+                                    })
+                                else:
+                                    # 已经是对象格式，直接使用
+                                    multimodal_content.append(item)
+                            else:
+                                multimodal_content.append(item)
+                        elif "image_url" in item or "url" in item:
+                            # 图像URL格式
+                            if "image_url" in item:
+                                image_url_obj = item["image_url"]
+                                # 如果 image_url 是字符串，需要转换为对象格式
+                                if isinstance(image_url_obj, str):
+                                    multimodal_content.append({
+                                        "type": "image_url",
+                                        "image_url": {"url": image_url_obj},
+                                    })
+                                else:
+                                    multimodal_content.append({
+                                        "type": "image_url",
+                                        "image_url": image_url_obj,
+                                    })
+                            else:
+                                multimodal_content.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": item["url"]},
+                                })
+                        elif "text" in item:
+                            # 文本对象
+                            multimodal_content.append({
+                                "type": "text",
+                                "text": item["text"],
+                            })
+                        else:
+                            # 未知格式，尝试转换为文本
+                            logger.warning("未知的多模态内容格式: %s", item)
+                            multimodal_content.append({
+                                "type": "text",
+                                "text": str(item),
+                            })
+                    else:
+                        # 其他类型，转换为文本
+                        multimodal_content.append({
+                            "type": "text",
+                            "text": str(item),
+                        })
+                
+                # 如果只有一个文本项，可以简化为字符串
+                if len(multimodal_content) == 1 and multimodal_content[0].get("type") == "text":
+                    openai_messages.append({
+                        "role": role,
+                        "content": multimodal_content[0]["text"],
+                    })
+                else:
+                    # 多模态内容
+                    openai_messages.append({
+                        "role": role,
+                        "content": multimodal_content,
+                    })
+            else:
+                # 其他类型，转换为文本
+                message_content = str(content)
+                openai_messages.append({
+                    "role": role,
+                    "content": message_content,
+                })
+        
+        return openai_messages
+
+    @property
+    def _llm_type(self) -> str:
+        """返回 LLM 类型标识"""
+        return "openai_sdk_adapter"
+

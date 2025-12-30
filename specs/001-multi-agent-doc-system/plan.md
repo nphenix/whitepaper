@@ -105,7 +105,11 @@ src/
 │   ├── document/              # 文档领域模型 ✅
 │   │   ├── document.py        # 文档领域模型
 │   │   └── preprocessed_document.py  # 预处理文档模型
-│   ├── knowledge_base/        # 知识库领域模型 ⏸️ 待实现
+│   ├── knowledge_base/        # 知识库领域模型 ✅
+│   │   ├── knowledge_entry.py  # 知识条目模型
+│   │   └── document_chunk.py   # 文档块模型
+│   ├── indexing/              # 索引进度领域模型 ✅
+│   │   └── indexing_progress.py  # 索引进度模型
 │   ├── agent/                 # Agent领域模型 ⏸️ 待实现
 │   └── memory/                # 记忆系统领域模型 ⏸️ 待实现
 ├── application/               # 应用服务层
@@ -117,7 +121,8 @@ src/
 │   │   └── draft_generator.py        # 草稿生成Agent ⏸️ 待实现
 │   ├── services/              # 业务服务
 │   │   ├── document_service.py       # 文档服务 ✅
-│   │   ├── knowledge_base_service.py # 知识库服务 ⏸️ 待实现
+│   │   ├── knowledge_base_service.py # 知识库服务 ✅
+│   │   ├── indexing_progress_service.py  # 索引进度跟踪服务 ✅
 │   │   ├── memory_service.py         # 记忆服务 ⏸️ 待实现
 │   │   └── prompt_engineering_service.py  # 提示词工程服务 ⏸️ 待实现
 │   └── orchestrator.py        # LangChain Agent编排 ✅
@@ -126,13 +131,15 @@ src/
 │   │   ├── app.py             # FastAPI应用
 │   │   ├── main.py            # API入口
 │   │   ├── routes/            # API路由
-│   │   │   └── documents.py   # 文档路由 ✅
+│   │   │   ├── documents.py   # 文档路由 ✅
+│   │   │   └── knowledge_base.py  # 知识库路由 ✅
 │   │   └── schemas/           # API Schema
-│   │       └── document_schemas.py  # 文档Schema ✅
+│   │       ├── document_schemas.py  # 文档Schema ✅
+│   │       └── knowledge_base_schemas.py  # 知识库Schema ✅
 │   ├── cli/                   # Typer CLI命令 ✅
 │   │   ├── agents.py          # Agent相关命令
 │   │   ├── documents.py       # 文档相关命令 ✅
-│   │   ├── knowledge_base.py  # 知识库相关命令
+│   │   ├── knowledge_base.py  # 知识库相关命令 ✅
 │   │   ├── memory.py          # 记忆相关命令
 │   │   ├── prompts.py         # 提示词相关命令
 │   │   ├── templates.py       # 模板相关命令
@@ -151,15 +158,23 @@ src/
 │   │   └── networkx/          # NetworkX图存储适配器 ✅
 │   │       ├── adapter.py     # NetworkX适配器
 │   │       └── graph_manager.py  # 图管理器
-│   ├── indexing/              # 索引构建 ⏸️ 待实现
-│   │   ├── vector_index.py
-│   │   ├── bm25_index.py
-│   │   └── knowledge_graph.py
-│   ├── parsing/               # 文档解析 ⏸️ 待实现
-│   │   ├── pdf_parser.py
-│   │   ├── html_parser.py
-│   │   └── docx_parser.py
-│   │   └── ocr/               # PaddleOCR集成
+│   ├── indexing/              # 索引构建 ✅
+│   │   ├── vector_index.py    # 向量索引构建器 ✅
+│   │   ├── bm25_index.py      # BM25索引构建器 ✅
+│   │   ├── metadata_index.py  # 元数据索引构建器 ✅
+│   │   ├── knowledge_graph.py # 知识图谱构建器 ✅
+│   │   ├── hybrid_retriever.py # 混合检索引擎 ✅
+│   │   ├── structured_retrieval.py # 结构化检索增强 ✅
+│   │   ├── document_chunking.py # 文档分块策略 ✅
+│   │   ├── embedding_generator.py # 向量嵌入生成器 ✅
+│   │   ├── retrieval_composition_splitter.py # 检索块与合成块分离 ✅
+│   │   └── enhanced_entity_relation_extractor.py # 知识图谱增强模块 ✅
+│   ├── parsing/               # 文档解析 ✅
+│   │   ├── document_converter.py  # Document格式转换适配器 ✅
+│   │   ├── markdown_parser.py      # Markdown解析器 ✅
+│   │   ├── html_parser.py          # HTML解析器 ✅
+│   │   └── loaders/                # 文档加载器
+│   │       └── preprocessed_document_reader.py  # 预处理结果读取器 ✅
 │   ├── preprocessing/         # 文档预处理 ✅
 │   │   ├── loaders/           # 文档加载器 ✅
 │   │   │   ├── base_loader.py  # 基础加载器接口 ✅
@@ -183,6 +198,7 @@ src/
 │       ├── worker.py          # Arq Worker
 │       ├── client.py           # 任务客户端
 │       ├── document_tasks.py   # 文档处理任务 ✅
+│       ├── indexing_tasks.py    # 索引构建任务 ✅
 │       ├── settings.py         # 任务配置
 │       └── monitoring.py      # 任务监控
 └── shared/                    # 共享组件

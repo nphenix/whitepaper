@@ -1,9 +1,9 @@
 """
 文档预处理异步任务
 
-基于Arq任务队列的文档预处理异步任务,支持大文件处理和批量处理。
-调用T031预处理协调器或T032文档预处理Agent执行实际处理。
-支持T031B图表转JSON功能(可选)。
+基于Arq任务队列的文档预处理异步任务,支持大文件处理和批量处理.
+调用T031预处理协调器或T032文档预处理Agent执行实际处理.
+支持T031B图表转JSON功能(可选).
 
 生成命令: /speckit.implement T037
 生成时间: 2025-12-17
@@ -35,10 +35,10 @@ logger = get_logger(__name__)
 class DocumentProcessingTask(BaseTask):
     """文档预处理异步任务
 
-    封装文档预处理流程为异步任务,支持大文件处理和批量处理。
-    使用Arq任务队列,支持任务状态跟踪和错误重试。
-    调用T031预处理协调器或T032文档预处理Agent执行实际处理。
-    支持T031B图表转JSON功能(可选)。
+    封装文档预处理流程为异步任务,支持大文件处理和批量处理.
+    使用Arq任务队列,支持任务状态跟踪和错误重试.
+    调用T031预处理协调器或T032文档预处理Agent执行实际处理.
+    支持T031B图表转JSON功能(可选).
 
     功能特性:
     - 支持单个文档和批量文档处理
@@ -400,8 +400,8 @@ class DocumentProcessingTask(BaseTask):
 class BatchDocumentProcessingTask(BaseTask):
     """批量文档预处理异步任务
 
-    专门用于批量处理大量文档的优化任务。
-    支持分批处理和进度报告。
+    专门用于批量处理大量文档的优化任务.
+    支持分批处理和进度报告.
     """
 
     name = "batch_document_processing"
@@ -600,7 +600,7 @@ async def process_document_async(
 ) -> dict[str, Any]:
     """异步处理单个文档
 
-    便捷函数,用于快速处理单个文档。
+    便捷函数,用于快速处理单个文档.
 
     Args:
         file_path: 文档路径
@@ -634,7 +634,7 @@ async def process_documents_async(
 ) -> dict[str, Any]:
     """异步处理多个文档
 
-    便捷函数,用于快速处理多个文档。
+    便捷函数,用于快速处理多个文档.
 
     Args:
         file_paths: 文档路径列表
@@ -668,7 +668,7 @@ async def process_batch_documents_async(
 ) -> dict[str, Any]:
     """异步批量处理大量文档
 
-    便捷函数,用于处理大量文档。
+    便捷函数,用于处理大量文档.
 
     Args:
         file_paths: 文档路径列表

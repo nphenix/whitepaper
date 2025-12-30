@@ -350,7 +350,7 @@ OUTPUT_DIR=./data/output
                 task = progress.add_task("初始化示例数据...", total=None)
 
                 # 这里可以添加示例数据的初始化逻辑
-                # 例如:创建示例文档、知识库条目等
+                # 例如:创建示例文档,知识库条目等
 
                 progress.update(task, description="示例数据初始化完成")
                 return True

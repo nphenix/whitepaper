@@ -5,8 +5,8 @@
 """
 日志配置和格式化工具模块
 
-提供统一的日志配置、结构化日志记录和日志级别管理功能。
-支持控制台、文件等多种输出格式, 便于调试和监控。
+提供统一的日志配置,结构化日志记录和日志级别管理功能.
+支持控制台,文件等多种输出格式, 便于调试和监控.
 """
 
 import contextlib
@@ -166,9 +166,9 @@ class LoggerManager:
         root_logger = logging.getLogger()
 
         # 在pytest环境下, 避免干预其日志捕获配置
-        # pytest 在启动时会为根日志器安装自己的handler, 用于捕获日志输出。
+        # pytest 在启动时会为根日志器安装自己的handler, 用于捕获日志输出.
         # 如果我们在这里清理或关闭这些handler, 会导致类似
-        # 'ValueError: I/O operation on closed file' 或 'OSError: [WinError 6] 句柄无效'。
+        # 'ValueError: I/O operation on closed file' 或 'OSError: [WinError 6] 句柄无效'.
         if "pytest" in sys.modules and root_logger.handlers:
             cls._configured = True
             return

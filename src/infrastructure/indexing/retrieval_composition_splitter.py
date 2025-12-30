@@ -5,18 +5,18 @@
 """
 检索块与合成块分离策略 (T062)
 
-该模块实现检索块与合成块分离策略，遵循LlamaIndex最佳实践，优化RAG性能。
-通过双层分块策略，解耦检索块与合成块，提高检索精度和生成质量。
+该模块实现检索块与合成块分离策略,遵循LlamaIndex最佳实践,优化RAG性能.
+通过双层分块策略,解耦检索块与合成块,提高检索精度和生成质量.
 
 设计目标:
-- 检索块: 较小的块（如256字符），用于语义检索，优化检索精度
-- 合成块: 较大的块（如1024字符），用于生成上下文，提供足够的上下文
-- 映射关系: 建立检索块与合成块的映射关系，检索时使用检索块，生成时使用对应的合成块
-- 元数据保留: 在两个层级都保留章节路径、文档位置等元数据
+- 检索块: 较小的块(如256字符),用于语义检索,优化检索精度
+- 合成块: 较大的块(如1024字符),用于生成上下文,提供足够的上下文
+- 映射关系: 建立检索块与合成块的映射关系,检索时使用检索块,生成时使用对应的合成块
+- 元数据保留: 在两个层级都保留章节路径,文档位置等元数据
 
 参考LlamaIndex最佳实践:
 - https://docs.llamaindex.org.cn/en/stable/optimizing/production_rag/
-- 解耦检索块与合成块，优化RAG性能
+- 解耦检索块与合成块,优化RAG性能
 """
 
 from __future__ import annotations
@@ -38,9 +38,9 @@ except ImportError:  # pragma: no cover - 仅在未安装 llama-index 时触发
     logger.warning(
         "LlamaIndex not available, retrieval-composition splitter will be disabled"
     )
-    SentenceSplitter = Any  # type: ignore[assignment]
-    Node = Any  # type: ignore[assignment]
-    TextNode = Any  # type: ignore[assignment]
+    SentenceSplitter = Any  # type: ignore
+    Node = Any  # type: ignore
+    TextNode = Any  # type: ignore
     LLAMA_INDEX_AVAILABLE = False
 
 
@@ -61,12 +61,12 @@ class RetrievalCompositionConfig:
     检索块与合成块分离配置
 
     Attributes:
-        retrieval_chunk_size: 检索块的最大字符数（较小的块，用于语义检索）
+        retrieval_chunk_size: 检索块的最大字符数(较小的块,用于语义检索)
         retrieval_chunk_overlap: 检索块之间的重叠字符数
-        composition_chunk_size: 合成块的最大字符数（较大的块，用于生成上下文）
+        composition_chunk_size: 合成块的最大字符数(较大的块,用于生成上下文)
         composition_chunk_overlap: 合成块之间的重叠字符数
-        mapping_strategy: 映射策略，决定如何建立检索块与合成块的映射关系
-            - "overlap": 基于重叠区域映射（默认）
+        mapping_strategy: 映射策略,决定如何建立检索块与合成块的映射关系
+            - "overlap": 基于重叠区域映射(默认)
             - "containment": 基于包含关系映射
             - "nearest": 基于最近距离映射
     """
@@ -129,8 +129,8 @@ class ChunkMapping:
     Attributes:
         retrieval_node_id: 检索块节点ID
         composition_node_id: 合成块节点ID
-        mapping_type: 映射类型（overlap/containment/nearest）
-        overlap_ratio: 重叠比例（0-1之间）
+        mapping_type: 映射类型(overlap/containment/nearest)
+        overlap_ratio: 重叠比例(0-1之间)
     """
 
     retrieval_node_id: str
@@ -143,8 +143,8 @@ class RetrievalCompositionSplitter:
     """
     检索块与合成块分离器
 
-    实现双层分块策略，将文档分为检索块和合成块，并建立两者之间的映射关系。
-    检索时使用检索块进行语义检索，生成时使用对应的合成块提供上下文。
+    实现双层分块策略,将文档分为检索块和合成块,并建立两者之间的映射关系.
+    检索时使用检索块进行语义检索,生成时使用对应的合成块提供上下文.
 
     典型用法:
         >>> splitter = RetrievalCompositionSplitter()
@@ -160,23 +160,26 @@ class RetrievalCompositionSplitter:
         初始化分离器
 
         Args:
-            config: 检索块与合成块分离配置，如果为None则使用默认配置
+            config: 检索块与合成块分离配置,如果为None则使用默认配置
         """
         if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError(
+            msg = (
                 "LlamaIndex is not available. Please install llama-index package to "
                 "use RetrievalCompositionSplitter."
+            )
+            raise ImportError(
+                msg
             )
 
         self.config = config or RetrievalCompositionConfig()
 
-        # 创建检索块分割器（较小的块）
+        # 创建检索块分割器(较小的块)
         self._retrieval_splitter = SentenceSplitter(
             chunk_size=self.config.retrieval_chunk_size,
             chunk_overlap=self.config.retrieval_chunk_overlap,
         )
 
-        # 创建合成块分割器（较大的块）
+        # 创建合成块分割器(较大的块)
         self._composition_splitter = SentenceSplitter(
             chunk_size=self.config.composition_chunk_size,
             chunk_overlap=self.config.composition_chunk_overlap,
@@ -197,10 +200,10 @@ class RetrievalCompositionSplitter:
         """
         对节点列表进行检索块与合成块分离
 
-        生成两层分块：
-        1. 检索块：较小的块，用于语义检索
-        2. 合成块：较大的块，用于生成上下文
-        3. 映射关系：建立检索块与合成块的映射
+        生成两层分块:
+        1. 检索块:较小的块,用于语义检索
+        2. 合成块:较大的块,用于生成上下文
+        3. 映射关系:建立检索块与合成块的映射
 
         Args:
             nodes: LlamaIndex Node对象列表
@@ -215,13 +218,13 @@ class RetrievalCompositionSplitter:
             logger.warning("空的 Node 列表, 不执行分块")
             return [], [], []
 
-        # 第一步：生成合成块（较大的块，用于生成上下文）
+        # 第一步:生成合成块(较大的块,用于生成上下文)
         composition_nodes = self._create_composition_nodes(nodes)
 
-        # 第二步：生成检索块（较小的块，用于语义检索）
+        # 第二步:生成检索块(较小的块,用于语义检索)
         retrieval_nodes = self._create_retrieval_nodes(nodes)
 
-        # 第三步：建立映射关系
+        # 第三步:建立映射关系
         mappings = self._build_mappings(
             retrieval_nodes, composition_nodes, nodes
         )
@@ -239,7 +242,7 @@ class RetrievalCompositionSplitter:
 
     def _create_composition_nodes(self, nodes: list[Node]) -> list[Node]:
         """
-        创建合成块（较大的块，用于生成上下文）
+        创建合成块(较大的块,用于生成上下文)
 
         Args:
             nodes: 原始节点列表
@@ -265,8 +268,9 @@ class RetrievalCompositionSplitter:
                 split_texts = self._composition_splitter.split_text(str(text))
             except Exception as exc:  # pragma: no cover - 保护性分支
                 logger.error("合成块分块失败: %s", exc, exc_info=True)
+                msg = f"合成块分块失败: {exc}"
                 raise RetrievalCompositionSplitterError(
-                    f"合成块分块失败: {exc}"
+                    msg
                 ) from exc
 
             if not split_texts:
@@ -274,7 +278,7 @@ class RetrievalCompositionSplitter:
                     "合成块分割器返回空结果, 保留原始节点: node_index=%s",
                     node_index,
                 )
-                # 如果分块失败，保留原始节点作为合成块
+                # 如果分块失败,保留原始节点作为合成块
                 composition_node = self._create_composition_node(
                     node, base_metadata, global_composition_index, node_index
                 )
@@ -302,7 +306,7 @@ class RetrievalCompositionSplitter:
 
     def _create_retrieval_nodes(self, nodes: list[Node]) -> list[Node]:
         """
-        创建检索块（较小的块，用于语义检索）
+        创建检索块(较小的块,用于语义检索)
 
         Args:
             nodes: 原始节点列表
@@ -328,8 +332,9 @@ class RetrievalCompositionSplitter:
                 split_texts = self._retrieval_splitter.split_text(str(text))
             except Exception as exc:  # pragma: no cover - 保护性分支
                 logger.error("检索块分块失败: %s", exc, exc_info=True)
+                msg = f"检索块分块失败: {exc}"
                 raise RetrievalCompositionSplitterError(
-                    f"检索块分块失败: {exc}"
+                    msg
                 ) from exc
 
             if not split_texts:
@@ -337,7 +342,7 @@ class RetrievalCompositionSplitter:
                     "检索块分割器返回空结果, 保留原始节点: node_index=%s",
                     node_index,
                 )
-                # 如果分块失败，保留原始节点作为检索块
+                # 如果分块失败,保留原始节点作为检索块
                 retrieval_node = self._create_retrieval_node(
                     node, base_metadata, global_retrieval_index, node_index
                 )
@@ -380,7 +385,7 @@ class RetrievalCompositionSplitter:
             base_metadata: 基础元数据
             global_index: 全局索引
             original_node_index: 原始节点索引
-            chunk_text: 分块文本（如果为None则使用原始节点文本）
+            chunk_text: 分块文本(如果为None则使用原始节点文本)
             chunk_index_in_node: 在原始节点内的分块索引
 
         Returns:
@@ -404,7 +409,7 @@ class RetrievalCompositionSplitter:
             str(chunk_text) if chunk_text is not None else getattr(original_node, "text", "")
         )
 
-        return TextNode(
+        return TextNode(  # type: ignore[return-value]
             text=text_content,
             id_=node_id,
             metadata=composition_metadata,
@@ -427,7 +432,7 @@ class RetrievalCompositionSplitter:
             base_metadata: 基础元数据
             global_index: 全局索引
             original_node_index: 原始节点索引
-            chunk_text: 分块文本（如果为None则使用原始节点文本）
+            chunk_text: 分块文本(如果为None则使用原始节点文本)
             chunk_index_in_node: 在原始节点内的分块索引
 
         Returns:
@@ -451,7 +456,7 @@ class RetrievalCompositionSplitter:
             str(chunk_text) if chunk_text is not None else getattr(original_node, "text", "")
         )
 
-        return TextNode(
+        return TextNode(  # type: ignore[return-value]
             text=text_content,
             id_=node_id,
             metadata=retrieval_metadata,
@@ -466,12 +471,12 @@ class RetrievalCompositionSplitter:
         """
         建立检索块与合成块的映射关系
 
-        根据配置的映射策略，建立检索块与合成块之间的映射关系。
+        根据配置的映射策略,建立检索块与合成块之间的映射关系.
 
         Args:
             retrieval_nodes: 检索块节点列表
             composition_nodes: 合成块节点列表
-            original_nodes: 原始节点列表（用于确定位置关系）
+            original_nodes: 原始节点列表(用于确定位置关系)
 
         Returns:
             映射关系列表
@@ -505,7 +510,7 @@ class RetrievalCompositionSplitter:
         """
         基于重叠区域建立映射关系
 
-        对于每个检索块，找到与其有最大重叠的合成块。
+        对于每个检索块,找到与其有最大重叠的合成块.
 
         Args:
             retrieval_nodes: 检索块节点列表
@@ -534,7 +539,7 @@ class RetrievalCompositionSplitter:
                 if not composition_text or not composition_id:
                     continue
 
-                # 计算重叠比例（简单的文本重叠计算）
+                # 计算重叠比例(简单的文本重叠计算)
                 overlap_ratio = self._calculate_text_overlap(
                     retrieval_text, composition_text
                 )
@@ -543,7 +548,7 @@ class RetrievalCompositionSplitter:
                     best_overlap_ratio = overlap_ratio
                     best_composition = composition_node
 
-            # 如果找到重叠的合成块，创建映射
+            # 如果找到重叠的合成块,创建映射
             if best_composition and best_overlap_ratio > 0:
                 composition_id = getattr(best_composition, "id_", "")
                 mapping = ChunkMapping(
@@ -562,7 +567,7 @@ class RetrievalCompositionSplitter:
         """
         基于包含关系建立映射关系
 
-        对于每个检索块，找到包含它的合成块。
+        对于每个检索块,找到包含它的合成块.
 
         Args:
             retrieval_nodes: 检索块节点列表
@@ -610,7 +615,7 @@ class RetrievalCompositionSplitter:
         """
         基于最近距离建立映射关系
 
-        根据原始节点的位置关系，找到最近的合成块。
+        根据原始节点的位置关系,找到最近的合成块.
 
         Args:
             retrieval_nodes: 检索块节点列表
@@ -622,7 +627,7 @@ class RetrievalCompositionSplitter:
         """
         mappings: list[ChunkMapping] = []
 
-        # 构建索引：原始节点索引 -> 合成块节点
+        # 构建索引:原始节点索引 -> 合成块节点
         composition_by_original: dict[int, list[Node]] = {}
         for composition_node in composition_nodes:
             original_index = composition_node.metadata.get(
@@ -656,8 +661,8 @@ class RetrievalCompositionSplitter:
                 mappings.append(mapping)
                 continue
 
-            # 如果找不到相同原始节点的合成块，使用最近的
-            # 这里简化处理，使用第一个合成块
+            # 如果找不到相同原始节点的合成块,使用最近的
+            # 这里简化处理,使用第一个合成块
             if composition_nodes:
                 composition_node = composition_nodes[0]
                 composition_id = getattr(composition_node, "id_", "")
@@ -675,24 +680,24 @@ class RetrievalCompositionSplitter:
         """
         计算两个文本的重叠比例
 
-        使用简单的字符重叠计算，返回0-1之间的重叠比例。
+        使用简单的字符重叠计算,返回0-1之间的重叠比例.
 
         Args:
             text1: 第一个文本
             text2: 第二个文本
 
         Returns:
-            重叠比例（0-1之间）
+            重叠比例(0-1之间)
         """
         if not text1 or not text2:
             return 0.0
 
-        # 简单的重叠计算：计算公共子串的长度比例
-        # 这里使用简化的方法：计算较短的文本在较长文本中的出现比例
+        # 简单的重叠计算:计算公共子串的长度比例
+        # 这里使用简化的方法:计算较短的文本在较长文本中的出现比例
         shorter = text1 if len(text1) < len(text2) else text2
         longer = text2 if len(text1) < len(text2) else text1
 
-        # 计算重叠字符数（简单的子串匹配）
+        # 计算重叠字符数(简单的子串匹配)
         overlap_chars = 0
         for i in range(len(shorter)):
             if i < len(longer) and shorter[i] == longer[i]:
@@ -709,14 +714,14 @@ class RetrievalCompositionSplitter:
         """
         根据检索块ID获取对应的合成块ID列表
 
-        用于检索后，根据检索到的检索块，找到对应的合成块用于生成上下文。
+        用于检索后,根据检索到的检索块,找到对应的合成块用于生成上下文.
 
         Args:
             retrieval_node_ids: 检索块ID列表
             mappings: 映射关系列表
 
         Returns:
-            合成块ID列表（去重）
+            合成块ID列表(去重)
         """
         composition_ids: set[str] = set()
 

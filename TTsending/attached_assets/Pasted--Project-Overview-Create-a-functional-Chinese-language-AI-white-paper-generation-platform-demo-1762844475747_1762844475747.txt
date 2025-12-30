@@ -1,0 +1,253 @@
+## **Project Overview**
+Create a functional Chinese-language AI white paper generation platform demo based on the provided UI designs. This is a clickable prototype for investor presentations focusing on energy storage policy analysis.
+
+**Base Repository**: https://github.com/pamperherself/AI-White-Paper-Demo
+
+**Primary Language**: Chinese (Simplified) for all UI elements
+
+---
+
+## **Core Requirements**
+
+### **Technology Stack**
+- Frontend: React or Vue.js with TypeScript
+- Styling: Tailwind CSS or similar (match the blue gradient theme from Image 1)
+- Backend: Node.js/Express with simple REST APIs
+- Mock data: Use energy storage policy analysis content (储能政策分析)
+
+### **UI Design Reference**
+Follow the visual style from the 4 uploaded images:
+- **Image 1**: Main dashboard (already completed - reference for styling)
+- **Image 2**: Outline editing page
+- **Image 3**: Source selection page  
+- **Image 4**: White paper display and editing page
+
+---
+
+## **Feature Implementation (按图片顺序)**
+
+### **Page 1: Main Dashboard** ✅ (Already Complete)
+- Reference this page's UI style for all subsequent pages
+- Blue gradient header design
+- Clean, modern card-based layout
+
+---
+
+### **Page 2: Outline Editing Interface (大纲编辑页面)**
+**Reference**: Image 2
+
+**Layout Components**:
+```
+- Progress stepper at top: Start → Add guidelines → Choose sources → Get draft
+- Current step highlighted: "Add guidelines" (step 2)
+- Large text input area with placeholder: "Paste, type or upload all assignment guidelines: topic, structure, key points, etc."
+- Character counter (e.g., "1024/3 000")
+- Two action buttons:
+  * "AI 优化" (AI Optimize) - primary blue button.
+- "Continue" button (blue, bottom right)
+```
+
+**Functionality**:
+- Multi-line text input supporting structured content
+- Real-time character count
+- Mock AI optimization: When clicked, slightly rephrase/restructure the input text
+- Navigate to Page 3 on "Continue" click
+- Store outline data in session/local storage
+
+**Mock Data Example**:
+```javascript
+{
+  sections: [
+    "1. 引言 - 储能系统定义与作用",
+    "2. 背景与理论框架 - 储能技术分类",
+    "3. 政策分析 - 国内外储能政策对比",
+    "4. 技术路线 - 锂电池与其他储能技术发展",
+    "5. 结论与展望"
+  ]
+}
+```
+
+---
+
+### **Page 3: Source Selection Interface (信息源选择页面)**
+**Reference**: Image 3
+
+**Layout Components**:
+```
+- Progress stepper (step 4: "Choose sources" highlighted)
+- Title: "Select suggested sources and/or add your own"
+
+- Two upload options at top:
+  * File upload box: "Click to upload or drag & drop your sources here"
+    - Support: .pdf, .docx, .pptx formats, 50MB max per file
+  * URL input box: "Add links to articles, websites, or YouTube"
+    - Text input with "Apply" button
+
+- Recommended sources section:
+  * Title: "Sources Litero found for your assignment. Select the ones you'd like to use."
+  * List of 4-5 academic sources with:
+    - Checkbox for selection
+    - "Recommended" badge (green)
+    - Citation count badge
+    - "Open" link icon
+    - Title, authors, year, publisher
+    - Short excerpt/abstract preview
+
+- Bottom: "Sources selected for citing: X" counter
+- "Generate draft" button (blue, bottom right)
+```
+
+**Functionality**:
+- Checkbox selection (at least 3-4 sources pre-selected)
+- File upload simulation (show filename after "upload")
+- URL input validation
+- Update selected source counter dynamically
+- Navigate to Page 4 on "Generate draft" click
+
+**Mock Data (Energy Storage Policy Sources)**:
+```javascript
+[
+  {
+    title: "储能技术发展与政策支持研究",
+    authors: "张伟, 李明",
+    year: 2023,
+    publisher: "能源政策研究所",
+    cited: 156,
+    excerpt: "本文分析了中国储能产业政策演变，重点讨论了财政补贴、电价机制等激励措施...",
+    recommended: true
+  },
+  {
+    title: "全球储能市场发展报告2024",
+    authors: "国际能源署",
+    year: 2024,
+    publisher: "IEA",
+    cited: 892,
+    excerpt: "全球储能装机容量持续增长，预计2030年将达到500GW以上...",
+    recommended: true
+  },
+  // Add 2-3 more similar sources
+]
+```
+
+---
+
+### **Page 4: White Paper Display & Editing (白皮书编辑展示页面)**
+**Reference**: Image 4
+
+**Three-Panel Layout**:
+
+**Left Sidebar (白皮书信息源)**:
+```
+- Title: "白皮书信息源"
+- Collapsible sections:
+  * 政策趋势 (Policy Trends)
+    - 国内政策 (with date, source, "查看" button)
+    - 国外政策
+    - 地方补贴政策
+  * 市场分析 (Market Analysis)
+  * 技术路线 (Technology Roadmap)
+    - 锂电池技术发展
+    - 储能系统集成方案
+```
+
+**Center Panel (白皮书编辑)**:
+```
+- Title: "白皮书编号"
+- Rich text editor toolbar: Bold, Italic, Heading, List, Quote
+- Two action buttons:
+  * "AI 润色" (AI Polish)
+  * "AI 生成摘要" (AI Generate Summary)
+- Main content area with:
+  * Chinese text content (energy storage policy analysis)
+  * English text section (showing bilingual capability)
+  * Inline AI suggestion popup (like shown in image: Apply/Retry/Discard options)
+- Editable content (Notion-like experience)
+```
+
+**Right Sidebar (AI 智能检索助手)**:
+```
+- Title: "AI 智能检索助手"
+- Subtitle: "可搜索历史记录、本地知识库及网络检索到内容"
+- Three tab buttons:
+  * 历史记录 (History)
+  * 知识库 (Knowledge Base)
+  * 联网搜索 (Web Search)
+- Welcome message: "您好!欢迎AI智能检索助手..."
+- Feature list:
+  * Personalize Notion AI
+  * Translate this page
+  * Analyze for insights (New badge)
+  * @ New page
+- Input box: "Ask, search, or make anything..."
+- Bottom icons: Attach, Search, All sources
+```
+
+**Functionality**:
+- Left sidebar: Accordion-style collapsible sections
+- Center editor:
+  * Editable text area
+  * AI suggestions appear as inline popups
+  * "AI 润色" button: slightly improve selected text
+  * Support for both Chinese and English content
+  * @ mention to trigger AI assistant
+- Right chatbot:
+  * Input message and receive mock AI responses
+  * Toggle between tabs
+  * Simulate search functionality
+  * Show typing indicator when processing
+
+**Mock Content (储能政策白皮书)**:
+```markdown
+# 储能产业政策分析白皮书
+
+## 一、引言
+
+可再生能源是指来自自然界并再生且几乎取之不尽的能源，可再生能源的主要来源包括光伏、风力发电等能源。可再生能源技术不断进步：光伏(PV)电池效率、风力涡轮机设计和储能系统技术进一步优化，使清洁能源的成本持续降低...
+
+根据国际能源署数据，2019年全球可再生能源发电量占总发电量的30.0%。此比例预计将在2029年增至63.6%。此外，2019年全球可再生能源发电量占全球总发电量的25.2%，2029年将达到29.1%，预计到2029年将达到45.0%...
+
+## 二、政策趋势分析
+
+### 2.1 国内政策环境
+[Content continues...]
+```
+
+---
+
+## **Navigation Flow**
+```
+Dashboard (Image 1) 
+  → Click "生成初稿" 
+  → Outline Page (Image 2) 
+  → Click "Continue" 
+  → Source Selection (Image 3) 
+  → Click "Generate draft" 
+  → White Paper Editor (Image 4)
+```
+
+---
+
+## **Key Implementation Notes for Replit Agent**
+
+1. **Use mock data throughout** - no real AI API calls needed for demo
+2. **Simulate AI responses** with pre-written alternatives and simple text transformations
+3. **Focus on smooth UI transitions** between pages
+4. **Maintain consistent Chinese UI** with professional terminology
+5. **Replicate the exact visual style** from the uploaded images (blue gradients, card layouts, button styles)
+6. **Make all interactions feel realistic** (loading states, success messages, etc.)
+7. **Store user input temporarily** to show continuity between pages
+8. **Responsive design** - works on desktop primarily (tablet/mobile optional)
+
+---
+
+## **Priority Order**
+1. ✅ Verify Page 1 (Dashboard) matches the reference
+2. Build Page 2 (Outline Editor) with working text input and navigation
+3. Build Page 3 (Source Selection) with checkbox selection and mock sources
+4. Build Page 4 (White Paper Editor) with three-panel layout and basic chat
+5. Polish UI details and transitions
+6. Test complete user flow from start to finish
+
+---
+
+**Deliverable**: A fully clickable demo showcasing the AI white paper generation workflow with realistic mock data focused on energy storage policy analysis (储能政策分析), ready for investor presentations.

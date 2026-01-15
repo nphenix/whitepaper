@@ -265,7 +265,7 @@ class ConfigValidator:
         """构建嵌入模型配置
 
         Args:
-            provider: 提供商名称
+            provider: 提供商名称 (ollama, dashscope, openai, flagembedding)
             config_dict: 配置字典
 
         Returns:
@@ -286,7 +286,27 @@ class ConfigValidator:
             "batch_size": int(batch_size_str),
         }
 
-        if provider == "dashscope":
+        if provider == "ollama":
+            # Ollama 本地部署配置
+            model_name = ConfigValidator.get_env_or_config(
+                "EMBEDDING_MODEL_NAME", config_dict, "model_name"
+            )
+            base_url = ConfigValidator.get_env_or_config(
+                "EMBEDDING_BASE_URL", config_dict, "base_url", required=False,
+                default="http://localhost:11434"
+            )
+            api_key = ConfigValidator.get_env_or_config(
+                "EMBEDDING_API_KEY", config_dict, "api_key", required=False, default=""
+            )
+
+            config.update(
+                {
+                    "model_name": model_name,
+                    "base_url": base_url,
+                    "api_key": api_key,
+                }
+            )
+        elif provider == "dashscope":
             api_key = ConfigValidator.get_env_or_config(
                 "EMBEDDING_API_KEY", config_dict, "api_key"
             )
@@ -322,6 +342,23 @@ class ConfigValidator:
                     "model_name": model_name,
                 }
             )
+        elif provider == "flagembedding":
+            # FlagEmbedding 本地部署配置
+            model_name = ConfigValidator.get_env_or_config(
+                "EMBEDDING_MODEL_NAME", config_dict, "model_name"
+            )
+            model_path = ConfigValidator.get_env_or_config(
+                "EMBEDDING_MODEL_PATH", config_dict, "model_path"
+            )
+            # FlagEmbedding 不需要 API Key 和 base_url
+            config.update(
+                {
+                    "model_name": model_name,
+                    "model_path": model_path,
+                    "api_key": "",
+                    "base_url": "",
+                }
+            )
 
         return config
 
@@ -333,7 +370,7 @@ class ConfigValidator:
         """构建重排序模型配置
 
         Args:
-            provider: 提供商名称
+            provider: 提供商名称 (ollama, dashscope, flagembedding)
             config_dict: 配置字典
 
         Returns:
@@ -350,7 +387,27 @@ class ConfigValidator:
             "top_k": int(top_k_str),
         }
 
-        if provider == "dashscope":
+        if provider == "ollama":
+            # Ollama/vLLM/Xinference 本地部署配置
+            model_name = ConfigValidator.get_env_or_config(
+                "RERANK_MODEL_NAME", config_dict, "model_name"
+            )
+            base_url = ConfigValidator.get_env_or_config(
+                "RERANK_BASE_URL", config_dict, "base_url", required=False,
+                default="http://localhost:8000"
+            )
+            api_key = ConfigValidator.get_env_or_config(
+                "RERANK_API_KEY", config_dict, "api_key", required=False, default=""
+            )
+
+            config.update(
+                {
+                    "model_name": model_name,
+                    "base_url": base_url,
+                    "api_key": api_key,
+                }
+            )
+        elif provider == "dashscope":
             api_key = ConfigValidator.get_env_or_config(
                 "RERANK_API_KEY", config_dict, "api_key"
             )
@@ -362,6 +419,23 @@ class ConfigValidator:
                 {
                     "api_key": api_key,
                     "model_name": model_name,
+                }
+            )
+        elif provider == "flagembedding":
+            # FlagEmbedding 本地部署配置
+            model_name = ConfigValidator.get_env_or_config(
+                "RERANK_MODEL_NAME", config_dict, "model_name"
+            )
+            model_path = ConfigValidator.get_env_or_config(
+                "RERANK_MODEL_PATH", config_dict, "model_path"
+            )
+            # FlagEmbedding 不需要 API Key 和 base_url
+            config.update(
+                {
+                    "model_name": model_name,
+                    "model_path": model_path,
+                    "api_key": "",
+                    "base_url": "",
                 }
             )
 

@@ -435,17 +435,10 @@ class DraftSourceTraceService:
         Returns:
             HTML格式的列表项字符串
         """
-        if reference.is_local_document() and reference.local_reference:
-            local_ref = reference.local_reference
-            link_url = self.link_service.create_link_from_local_reference(
-                local_ref, scheme="file"
-            )
-            location = local_ref.get_location_string()
-
-            return (
-                f"<li>{reference.title} ({location}) - "
-                f'<a href="{link_url}">{local_ref.get_display_path()}</a></li>'
-            )
+        # 交付物参考文献：仅展示标题，避免暴露本地路径 / (未知位置) 噪声
+        if reference.is_local_document():
+            title = (reference.title or "").strip() or "未知文档"
+            return f"<li>{title}</li>"
         else:
             return (
                 f"<li>{reference.title} (网络文章 - 待第三步完成后启用)</li>"

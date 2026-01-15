@@ -98,6 +98,9 @@ class MetadataIndexBuilder:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 node_id TEXT NOT NULL UNIQUE,
                 document_id TEXT NOT NULL,
+                document_name TEXT,
+                file_path TEXT,
+                filename TEXT,
                 chunk_index INTEGER NOT NULL,
                 chunk_index_in_node INTEGER NOT NULL,
                 original_node_index INTEGER NOT NULL,
@@ -121,6 +124,8 @@ class MetadataIndexBuilder:
             create_indexes_sql = [
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_node_id ON {self.table_name} (node_id)",
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_document_id ON {self.table_name} (document_id)",
+                f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_document_name ON {self.table_name} (document_name)",
+                f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_file_path ON {self.table_name} (file_path)",
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_section_path ON {self.table_name} (section_path)",
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_element_type ON {self.table_name} (element_type)",
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_chunk_index ON {self.table_name} (chunk_index)",
@@ -129,9 +134,49 @@ class MetadataIndexBuilder:
             # 执行表创建
             self.adapter.execute_custom_query(create_table_sql)
 
+            # 检查并添加缺失的列（用于表结构升级）
+            try:
+                # 检查现有列 - PRAGMA table_info 返回元组列表
+                check_columns_sql = f"PRAGMA table_info({self.table_name})"
+                # 使用原始连接执行查询以获取元组结果
+                with self.adapter.connection_manager.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(check_columns_sql)
+                    existing_columns = cursor.fetchall()
+                    # PRAGMA table_info 返回格式: (cid, name, type, notnull, dflt_value, pk)
+                    existing_column_names = [col[1] for col in existing_columns] if existing_columns else []
+                
+                # 添加缺失的列
+                if "document_name" not in existing_column_names:
+                    with self.adapter.connection_manager.get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(f"ALTER TABLE {self.table_name} ADD COLUMN document_name TEXT")
+                        conn.commit()
+                    logger.info(f"已添加列: document_name 到表 {self.table_name}")
+                
+                if "file_path" not in existing_column_names:
+                    with self.adapter.connection_manager.get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(f"ALTER TABLE {self.table_name} ADD COLUMN file_path TEXT")
+                        conn.commit()
+                    logger.info(f"已添加列: file_path 到表 {self.table_name}")
+                
+                if "filename" not in existing_column_names:
+                    with self.adapter.connection_manager.get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(f"ALTER TABLE {self.table_name} ADD COLUMN filename TEXT")
+                        conn.commit()
+                    logger.info(f"已添加列: filename 到表 {self.table_name}")
+            except Exception as e:
+                logger.warning(f"检查/添加列时出错（可能是新表）: {e}")
+
             # 执行索引创建
             for index_sql in create_indexes_sql:
-                self.adapter.execute_custom_query(index_sql)
+                try:
+                    self.adapter.execute_custom_query(index_sql, fetch_all=False)
+                except Exception as e:
+                    # 索引可能已存在，忽略错误
+                    logger.debug(f"创建索引时出错（可能已存在）: {e}")
 
             logger.info(f"元数据索引表初始化完成: {self.table_name}")
 
@@ -157,13 +202,24 @@ class MetadataIndexBuilder:
         # 获取基础元数据
         metadata = dict(getattr(node, "metadata", {}) or {})
 
+        # 安全提取 original_node_index，处理可能的 None 值
+        original_node_index_raw = metadata.get("original_node_index")
+        original_node_index = (
+            int(original_node_index_raw)
+            if original_node_index_raw is not None and original_node_index_raw != ""
+            else 0
+        )
+
         # 提取核心字段
         extracted = {
             "node_id": getattr(node, "id_", ""),
             "document_id": metadata.get("document_id", ""),
+            "document_name": metadata.get("document_name"),
+            "file_path": metadata.get("file_path"),
+            "filename": metadata.get("filename"),
             "chunk_index": metadata.get("chunk_index", 0),
             "chunk_index_in_node": metadata.get("chunk_index_in_node", 0),
-            "original_node_index": metadata.get("original_node_index", 0),
+            "original_node_index": original_node_index,
             "section_path": metadata.get("section_path"),
             "section_title": metadata.get("section_title"),
             "paragraph_index": metadata.get("paragraph_index"),
@@ -198,37 +254,46 @@ class MetadataIndexBuilder:
             logger.warning("空的Node列表,不构建索引")
             return []
 
-        logger.info(f"开始构建元数据索引,节点数: {len(nodes)}")
+        logger.info(f"开始构建元数据索引: nodes_count={len(nodes)}, table_name={self.table_name}")
 
         try:
             # 提取所有节点的元数据
             records = []
-            for node in nodes:
+            failed_nodes = 0
+
+            for i, node in enumerate(nodes):
                 try:
                     record = self._extract_metadata_from_node(node)
                     records.append(record)
                 except Exception as e:
-                    node_id = getattr(node, "id_", "unknown")
-                    logger.error(f"提取节点元数据失败: {node_id}, 错误: {e}")
+                    node_id = getattr(node, "id_", f"node_{i}")
+                    logger.error(f"提取节点元数据失败: node_id={node_id}, 错误: {e}")
+                    failed_nodes += 1
                     continue
+
+            logger.debug(
+                f"元数据提取完成: total_nodes={len(nodes)}, success={len(records)}, failed={failed_nodes}"
+            )
 
             if not records:
                 logger.warning("没有有效的元数据记录,不构建索引")
                 return []
 
             # 批量插入记录
+            logger.debug(f"开始批量插入元数据记录: records_count={len(records)}")
             created_records = self.adapter.bulk_create(records)
 
             logger.info(
-                f"元数据索引构建完成: 输入节点数={len(nodes)}, "
-                f"成功记录数={len(created_records)}, 表名={self.table_name}"
+                f"元数据索引构建完成: input_nodes={len(nodes)}, extracted_records={len(records)}, "
+                f"created_records={len(created_records) if created_records else 0}, "
+                f"failed_nodes={failed_nodes}, table_name={self.table_name}"
             )
 
-            return created_records
+            return created_records if created_records else []
 
         except Exception as e:
             error_msg = f"构建元数据索引失败: {e}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise MetadataIndexError(error_msg) from e
 
     def query(

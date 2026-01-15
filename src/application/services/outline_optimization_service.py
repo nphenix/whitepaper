@@ -3,6 +3,11 @@
 
 该模块提供大纲优化和用户反馈的管理服务, 支持保存大纲,保存优化后的大纲,
 接受/拒绝优化建议等功能.用于MVP 4步流程中的第二步: 大纲手写和AI优化.
+
+新增功能：
+- 自动将优化后的大纲保存为MD模板文件
+- MD模板作为草稿生成的单一数据源
+- 确保生成内容的结构准确性
 """
 
 # 生成命令: /speckit.implement T215
@@ -12,11 +17,15 @@
 import json
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from structlog import get_logger
 
 from src.application.services.base_service import BaseService
+from src.application.services.outline_to_markdown_service import (
+    OutlineToMarkdownService,
+)
 from src.domain.agent.optimized_outline import (
     OptimizedOutline,
 )
@@ -72,6 +81,8 @@ class OutlineOptimizationService(BaseService):
         self.outline_version_adapter = self._get_or_create_adapter(
             "outline_versions", updated_at_field=None
         )
+        # 确保 optimized_outlines 表包含 metadata 列（兼容旧表结构）
+        self._ensure_optimized_outlines_table_columns()
         self.optimized_outline_adapter = self._get_or_create_adapter("optimized_outlines")
         self.optimized_item_adapter = self._get_or_create_adapter(
             "optimized_outline_items", created_at_field=None, updated_at_field=None
@@ -79,6 +90,8 @@ class OutlineOptimizationService(BaseService):
         self.optimization_summary_adapter = self._get_or_create_adapter(
             "optimization_summaries", updated_at_field=None
         )
+        # MD模板生成服务
+        self.outline_to_markdown_service = OutlineToMarkdownService()
 
     def _ensure_outline_item_version_tables_exist(self) -> None:
         """
@@ -140,6 +153,60 @@ class OutlineOptimizationService(BaseService):
         except Exception as e:
             # 不阻断服务初始化；保持旧行为（后续读写时会继续走“缺表兼容”分支）
             logger.warning("运行时补齐 outline_items/outline_versions 表失败: %s", e)
+
+    def _ensure_optimized_outlines_table_columns(self) -> None:
+        """
+        确保 optimized_outlines 表包含必要的列（兼容旧表结构）
+        
+        说明：某些列（如 metadata）可能在表创建时不存在，需要运行时添加。
+        SQLite 支持 ADD COLUMN，因此可以在运行时做一次轻量级迁移。
+        """
+        from src.infrastructure.storage.sqlite.connection import get_connection_manager
+        
+        cm = self._connection_manager or get_connection_manager()
+        
+        try:
+            with cm.get_connection() as conn:
+                cursor = conn.cursor()
+                # 检查现有列
+                cursor.execute("PRAGMA table_info(optimized_outlines)")
+                existing_cols = {row[1] for row in cursor.fetchall()}
+                
+                # 添加缺失的列
+                ddl_statements: list[str] = []
+                
+                if "metadata" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN metadata TEXT DEFAULT '{}'")
+                
+                if "original_outline_id" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN original_outline_id TEXT")
+                
+                if "optimization_status" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN optimization_status TEXT DEFAULT 'PENDING'")
+                
+                if "is_accepted" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN is_accepted BOOLEAN DEFAULT FALSE")
+                
+                if "user_feedback" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN user_feedback TEXT")
+                
+                if "updated_at" not in existing_cols:
+                    ddl_statements.append("ALTER TABLE optimized_outlines ADD COLUMN updated_at TEXT")
+                
+                # 执行 DDL 语句
+                for ddl in ddl_statements:
+                    cursor.execute(ddl)
+                
+                if ddl_statements:
+                    conn.commit()
+                    logger.info(
+                        "为 optimized_outlines 表添加了 %d 个缺失的列: %s",
+                        len(ddl_statements),
+                        [stmt.split("ADD COLUMN")[1].split()[0] for stmt in ddl_statements]
+                    )
+        except Exception as e:
+            # 不阻断服务初始化；保持旧行为
+            logger.warning("运行时补齐 optimized_outlines 表列失败: %s", e)
 
     def save_outline(self, outline: Outline) -> dict[str, Any]:
         """
@@ -412,9 +479,45 @@ class OutlineOptimizationService(BaseService):
         """
         def _operation():
             validate_uuid(outline_id)
-            outline = self._get_resource_or_raise(
-                self.outline_adapter, outline_id, "Outline"
-            )
+            
+            # 1. 先尝试从数据库获取
+            try:
+                outline = self._get_resource_or_raise(
+                    self.outline_adapter, outline_id, "Outline"
+                )
+                # 文件驱动原则：
+                # - 若存在对应的模板文件，且数据库记录是“模板影子记录”，则仍以文件内容为准返回。
+                template_path = Path(f"data/output/drafts/outline_template_{outline_id}.md")
+                if template_path.exists():
+                    try:
+                        raw_meta = outline.get("metadata", {}) if isinstance(outline, dict) else {}
+                        meta = raw_meta
+                        if isinstance(raw_meta, str):
+                            try:
+                                meta = json.loads(raw_meta)
+                            except Exception:
+                                meta = {}
+                        if isinstance(meta, dict) and meta.get("source") in {"template_file", "template_shadow"}:
+                            logger.info(
+                                "检测到模板影子大纲记录，按文件驱动返回模板内容: outline_id=%s, template=%s",
+                                outline_id,
+                                template_path,
+                            )
+                            return self._load_outline_from_template(template_path, outline_id)
+                    except Exception:
+                        # 元数据解析失败不影响数据库路径
+                        pass
+            except ResourceNotFoundError:
+                # 2. 数据库没有，尝试从文件系统读取大纲模板
+                template_path = Path(f"data/output/drafts/outline_template_{outline_id}.md")
+                if template_path.exists():
+                    logger.info("大纲模板文件存在，从文件系统加载: %s", template_path)
+                    payload = self._load_outline_from_template(template_path, outline_id)
+                    # 方案B：文件为真，DB放“影子 outline”仅用于外键/关联
+                    self._ensure_outline_shadow_record_from_template(payload, template_path)
+                    return payload
+                else:
+                    raise
 
             # 获取大纲项（如果表不存在，返回空列表）
             items = []
@@ -475,6 +578,312 @@ class OutlineOptimizationService(BaseService):
             "获取大纲",
             re_raise=(ResourceNotFoundError,),
         )
+
+    def _ensure_outline_shadow_record_from_template(
+        self, payload: dict[str, Any], template_path: Path
+    ) -> None:
+        """确保 outlines 表存在“影子 outline”记录（不作为内容来源）
+
+        背景：
+        - outlines 可能由文件系统模板驱动（data/output/drafts/outline_template_{id}.md）
+        - 但 drafts.outline_id 通常有外键约束 -> outlines(id)
+        - 如果 outline 仅存在于文件而未落库，保存草稿会失败（你提供的日志即为此）
+
+        该方法只做最小落库：
+        - 仅在 outlines 中缺失该 id 时插入一条记录
+        - 使用 SQLiteAdapter 的“按实际列过滤写入”能力，兼容 outlines 表的多版本结构
+        - metadata 标记 source=template_shadow，明确 DB 非内容来源
+        """
+        outline_data = payload.get("outline") or {}
+        if not isinstance(outline_data, dict):
+            return
+
+        outline_id = str(outline_data.get("id") or "").strip()
+        if not outline_id:
+            return
+
+        # 已存在则不覆盖（避免覆盖真实 outline）
+        existing = self.outline_adapter.get_by_id(outline_id)
+        if existing:
+            return
+
+        # 解析 industry_id / database_ids（用于可能存在的外键约束）
+        industry_id = str(outline_data.get("industry_id") or "00000000-0000-0000-0000-000000000001")
+        database_ids_raw = outline_data.get("database_ids") or "[]"
+        database_ids: list[str] = []
+        if isinstance(database_ids_raw, str):
+            try:
+                parsed = json.loads(database_ids_raw)
+                if isinstance(parsed, list):
+                    database_ids = [str(x) for x in parsed if x]
+            except Exception:
+                database_ids = []
+        elif isinstance(database_ids_raw, list):
+            database_ids = [str(x) for x in database_ids_raw if x]
+
+        try:
+            self._ensure_industry_exists(industry_id)
+            self._ensure_databases_exist(database_ids, industry_id)
+        except Exception as e:
+            # 外键占位创建失败不应静默：否则影子记录落库会失败且更难定位
+            logger.warning("创建影子 outline 的外键占位数据失败(将继续尝试落库): %s", e)
+
+        # 兼容旧表结构中可能存在的 user_id/constraints_id NOT NULL 约束
+        default_user_id = "00000000-0000-0000-0000-000000000001"
+        default_constraints_id = "00000000-0000-0000-0000-000000000001"
+        try:
+            from src.infrastructure.storage.sqlite.adapter import SQLiteAdapter
+            from src.infrastructure.storage.sqlite.connection import get_connection_manager
+
+            cm = get_connection_manager()
+            user_adapter = SQLiteAdapter(table_name="users", connection_manager=cm, id_field="id", created_at_field="created_at", updated_at_field="updated_at")
+            if not user_adapter.get_by_id(default_user_id):
+                now = datetime.now(UTC).isoformat()
+                try:
+                    user_adapter.create(
+                        {
+                            "id": default_user_id,
+                            "username": "default_user",
+                            "email": "default@example.com",
+                            "created_at": now,
+                            "updated_at": now,
+                        }
+                    )
+                except Exception:
+                    pass
+
+            constraints_adapter = SQLiteAdapter(table_name="global_constraints", connection_manager=cm, id_field="id", created_at_field="created_at", updated_at_field="updated_at")
+            if not constraints_adapter.get_by_id(default_constraints_id):
+                now = datetime.now(UTC).isoformat()
+                try:
+                    constraints_adapter.create(
+                        {
+                            "id": default_constraints_id,
+                            "user_id": default_user_id,
+                            "report_type": "MARKET_RESEARCH",
+                            "language": "CHINESE",
+                            "target_length": 10000,
+                            "created_at": now,
+                            "updated_at": now,
+                        }
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            # 可能无 users/global_constraints 表；不阻断影子记录写入
+            pass
+
+        now = datetime.now(UTC).isoformat()
+        raw_structure = outline_data.get("structure")
+        if isinstance(raw_structure, str):
+            structure_value = raw_structure
+        else:
+            try:
+                structure_value = json.dumps(raw_structure or [])
+            except Exception:
+                structure_value = "[]"
+
+        # metadata：明确 DB 为影子记录，文件为真
+        shadow_meta = {
+            "source": "template_shadow",
+            "template_path": str(template_path),
+        }
+        record: dict[str, Any] = {
+            "id": outline_id,
+            "title": str(outline_data.get("title") or "白皮书草稿"),
+            "description": str(outline_data.get("description") or ""),
+            "industry_id": industry_id,
+            "database_ids": json.dumps(database_ids),
+            "status": str(outline_data.get("status") or "DRAFT"),
+            "current_version": int(outline_data.get("current_version") or 1),
+            "created_at": str(outline_data.get("created_at") or now),
+            "updated_at": str(outline_data.get("updated_at") or now),
+            "metadata": json.dumps(shadow_meta, ensure_ascii=False),
+            # 兼容不同 outlines 表结构
+            "items_json": json.dumps(payload.get("items") or [], ensure_ascii=False),
+            "structure": structure_value,
+            "original_outline_id": outline_id,
+            "user_id": default_user_id,
+            "constraints_id": default_constraints_id,
+        }
+
+        self.outline_adapter.create(record)
+        logger.info("已创建 outline 影子记录(用于外键/关联): outline_id=%s", outline_id)
+
+    def _load_outline_from_template(self, template_path: Path, outline_id: str) -> dict[str, Any]:
+        """
+        从大纲模板文件加载大纲数据
+        
+        Args:
+            template_path: 大纲模板文件路径
+            outline_id: 大纲ID
+            
+        Returns:
+            大纲信息字典
+        """
+        import re
+        
+        with open(template_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 解析标题（第一行的 ### 和第二行的 ###）
+        title = "白皮书草稿"
+        subtitle = ""
+        
+        lines = content.strip().split("\n")
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line.startswith("### "):
+                title = line.replace("### ", "").strip()
+            elif line.startswith("#### "):
+                subtitle = line.replace("#### ", "").strip()
+        
+        # 解析章节结构（兼容真实模板格式）
+        # 你当前模板的典型格式是：
+        # - 顶层标题行：### **第一章：xxx**
+        # - 列表项：- 1.1 xxx
+        # - 递进列表：    - 1.1.1 xxx
+        items: list[dict[str, Any]] = []
+        order = 0
+        current_root_id: str | None = None
+        # 记录编号层级的最近节点：depth(点号数) -> item_id
+        # depth=1 对应 1.1，depth=2 对应 1.1.1
+        last_numbered_id_by_depth: dict[int, str] = {}
+
+        def _cleanup_line(raw: str) -> str:
+            """去掉 markdown 标题/粗体/列表前缀，得到可匹配文本。"""
+            s = raw.strip()
+            # 去掉 markdown 标题前缀
+            s = re.sub(r"^#{1,6}\s*", "", s)
+            # 先去掉粗体标记（避免把 **xxx** 的首个 * 误删成“列表前缀”）
+            s = s.replace("**", "").replace("__", "").strip()
+            # 再去掉列表前缀（- / *），要求后面跟空格，避免误伤正文中的 *
+            s = re.sub(r"^[-*]\s+", "", s).strip()
+            return s
+
+        # 顶层“章/摘要/附录”标题（允许中文/英文冒号）
+        root_heading_re = re.compile(
+            r"^(第[一二三四五六七八九十]+章[^：:]*(?:综述|概述|分析|展望|建议)?|执行摘要|摘要|附录[^：:]*)[:：](.+)$"
+        )
+        # 编号项：1.1 / 1.1.1 / 1.1.1.1 ...
+        numbered_re = re.compile(r"^(\d+(?:\.\d+){1,5})\s+(.+)$")
+
+        for raw_line in lines:
+            if not raw_line or not raw_line.strip():
+                continue
+
+            line = _cleanup_line(raw_line)
+            if not line:
+                continue
+
+            # 1) 顶层标题（章/摘要/附录）
+            m_root = root_heading_re.match(line)
+            if m_root:
+                root_title = f"{m_root.group(1)}：{m_root.group(2).strip()}"
+                root_id = str(uuid.uuid4())
+                items.append(
+                    {
+                        "id": root_id,
+                        "outline_id": outline_id,
+                        "parent_id": None,
+                        "item_type": "SECTION",
+                        "level": 1,
+                        "title": root_title,
+                        "description": None,
+                        "order_index": order,
+                        "is_optimized": False,
+                        "original_title": None,
+                        "original_description": None,
+                        "optimization_suggestions": "[]",
+                        "metadata": "{}",
+                    }
+                )
+                order += 1
+                current_root_id = root_id
+                last_numbered_id_by_depth = {}
+                continue
+
+            # 2) 编号项（必须挂在某个 root 下，否则跳过）
+            m_num = numbered_re.match(line)
+            if m_num and current_root_id:
+                num_str = m_num.group(1)
+                title_text = m_num.group(2).strip()
+                depth = num_str.count(".")  # 1 => 1.1, 2 => 1.1.1 ...
+                # 层级：root 是 level=1；1.1 作为 level=2；1.1.1 作为 level=3 ...
+                level = min(1 + depth + 0, 6)  # depth=1 -> level=2
+                item_type = "SUBSECTION" if level <= 2 else "PARAGRAPH"
+
+                # 父级：depth=1 直接挂 root；depth>1 挂 depth-1 的最近节点
+                if depth <= 1:
+                    parent_id = current_root_id
+                else:
+                    parent_id = last_numbered_id_by_depth.get(depth - 1) or current_root_id
+
+                item_id = str(uuid.uuid4())
+                items.append(
+                    {
+                        "id": item_id,
+                        "outline_id": outline_id,
+                        "parent_id": parent_id,
+                        "item_type": item_type,
+                        "level": level,
+                        "title": f"{num_str} {title_text}",
+                        "description": None,
+                        "order_index": order,
+                        "is_optimized": False,
+                        "original_title": None,
+                        "original_description": None,
+                        "optimization_suggestions": "[]",
+                        "metadata": "{}",
+                    }
+                )
+                order += 1
+                last_numbered_id_by_depth[depth] = item_id
+                # 清理更深层的缓存，避免跨分支错误挂载
+                for k in list(last_numbered_id_by_depth.keys()):
+                    if k > depth:
+                        del last_numbered_id_by_depth[k]
+                continue
+        
+        # 构建结构数据
+        structure = []
+        for item in items:
+            structure.append({
+                "id": item["id"],
+                "parent_id": item["parent_id"],
+                "item_type": item["item_type"],
+                "level": item["level"],
+                "title": item["title"],
+                "order": item["order_index"],
+            })
+        
+        # 返回模拟的大纲数据
+        now = datetime.now(UTC).isoformat()
+        outline_data = {
+            "id": outline_id,
+            "title": title,
+            "description": subtitle,
+            "industry_id": "00000000-0000-0000-0000-000000000001",
+            "database_ids": "[]",
+            "status": "DRAFT",
+            "current_version": 1,
+            "created_at": now,
+            "updated_at": now,
+            "structure": json.dumps(structure),
+            "metadata": json.dumps({"source": "template_file", "template_path": str(template_path)}),
+        }
+        
+        logger.info(
+            "从模板文件加载大纲成功: outline_id=%s, item_count=%d",
+            outline_id,
+            len(items)
+        )
+        
+        return {
+            "outline": outline_data,
+            "items": items,
+            "versions": [],
+        }
 
     def save_optimized_outline(self, optimized_outline: OptimizedOutline) -> dict[str, Any]:
         """
@@ -637,6 +1046,38 @@ class OutlineOptimizationService(BaseService):
                         raise
 
             logger.info("优化后大纲保存成功", optimized_outline_id=str(optimized_outline.id))
+            
+            # 生成MD模板文件（新增功能）
+            try:
+                result = self.outline_to_markdown_service.save_optimized_outline_to_markdown(
+                    optimized_outline=optimized_outline,
+                )
+                
+                # 将MD模板路径保存到 metadata 中
+                template_path = str(result.template_path)
+                metadata = json.loads(optimized_outline.metadata or "{}")
+                metadata["markdown_template_path"] = template_path
+                metadata["markdown_template_content"] = result.template_content
+                metadata["section_blueprints_count"] = len(result.section_blueprints)
+                
+                # 更新 metadata 到数据库
+                self.optimized_outline_adapter.update(
+                    str(optimized_outline.id),
+                    {"metadata": json.dumps(metadata)}
+                )
+                
+                logger.info(
+                    "MD模板生成成功: 路径=%s, 章节数=%d",
+                    template_path,
+                    len(result.section_blueprints)
+                )
+            except Exception as md_error:
+                # MD模板生成失败不影响主流程，仅记录警告
+                logger.warning(
+                    "MD模板生成失败（不影响大纲保存）: 错误=%s",
+                    md_error
+                )
+            
             return optimized_outline.to_dict()
 
         except Exception as e:
@@ -1121,16 +1562,101 @@ class OutlineOptimizationService(BaseService):
                     current_exception = current_exception.__cause__
                 all_error_text = " ".join(error_messages).lower()
 
-                if "no such column" in all_error_text and "original_outline_id" in all_error_text:
+                # 检查是否是列不存在的错误（兼容多种错误信息格式）
+                if ("no such column" in all_error_text and "original_outline_id" in all_error_text) or \
+                   ("original_outline_id" in all_error_text and ("列" in all_error_text or "column" in all_error_text.lower())):
                     logger.warning(
                         "optimized_outlines表缺少original_outline_id列，尝试使用 outline_id 查询(兼容旧表结构)。错误: %s",
                         error_str,
                     )
-                    optimized_outlines = self.optimized_outline_adapter.list(
-                        filters={"outline_id": outline_id}
-                    )
+                    try:
+                        optimized_outlines = self.optimized_outline_adapter.list(
+                            filters={"outline_id": outline_id}
+                        )
+                    except Exception as fallback_error:
+                        logger.error(
+                            "使用outline_id查询也失败: %s",
+                            fallback_error,
+                            exc_info=True,
+                        )
+                        # 如果使用outline_id也失败，返回空列表（兼容旧表结构）
+                        logger.warning("返回空的优化历史列表（兼容旧表结构）")
+                        optimized_outlines = []
                 else:
                     raise
+
+            # 如果数据库中没有优化历史，检查是否存在大纲模板文件
+            if not optimized_outlines:
+                template_path = Path(f"data/output/drafts/outline_template_{outline_id}.md")
+                if template_path.exists():
+                    logger.info("数据库中没有优化历史，从模板文件创建优化历史: %s", template_path)
+
+                    # 从MD模板文件解析实际的大纲结构
+                    try:
+                        from src.application.services.outline_to_markdown_service import (
+                            OutlineToMarkdownService,
+                        )
+                        md_service = OutlineToMarkdownService()
+                        blueprints = md_service.parse_markdown_to_blueprints(template_path)
+
+                        # 将蓝本转换为 optimized_structure 格式
+                        optimized_structure = []
+                        for bp in blueprints:
+                            # 构建节点结构
+                            node = {
+                                "id": str(uuid.uuid4()),
+                                "optimized_item_id": bp.section_id,
+                                "item_type": "SECTION",
+                                "level": bp.level,
+                                "title": bp.title,
+                                "description": bp.description or "",
+                                "order": bp.order,
+                                "change_type": "NONE",
+                                "optimization_suggestions": bp.prompt or "",
+                                "is_accepted": True,
+                                "metadata": {
+                                    "min_words": bp.min_words,
+                                    "max_words": bp.max_words,
+                                    "source": "template_file",
+                                },
+                            }
+                            optimized_structure.append(node)
+
+                        logger.info(
+                            "从MD模板解析出大纲结构: 蓝本数=%d, 章节数=%d",
+                            len(blueprints),
+                            len(optimized_structure)
+                        )
+                    except Exception as parse_err:
+                        logger.warning(
+                            "从MD模板解析大纲结构失败，将使用空结构: %s",
+                            parse_err
+                        )
+                        optimized_structure = []
+
+                    # 创建模拟的优化历史（已接受的优化）
+                    now = datetime.now(UTC).isoformat()
+                    # 使用 outline_id 作为优化后大纲ID的一部分，便于追溯
+                    mock_optimized_id = str(uuid.uuid4())
+                    optimized_outlines = [{
+                        "id": mock_optimized_id,
+                        "original_outline_id": outline_id,
+                        "outline_id": outline_id,
+                        "optimized_structure": optimized_structure,  # 使用解析出的实际结构
+                        "optimization_suggestions": [],
+                        "applied_suggestions": [],
+                        "summary_id": None,
+                        "is_accepted": True,
+                        "user_feedback": None,
+                        "optimization_status": "ACCEPTED",
+                        "created_at": now,
+                        "updated_at": now,
+                        "metadata": json.dumps({
+                            "source": "template_file",
+                            "from_template": True,
+                            "template_path": str(template_path),
+                        }),
+                    }]
 
             # 为每个优化后大纲获取详细信息
             history = []

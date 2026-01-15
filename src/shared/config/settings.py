@@ -55,13 +55,22 @@ class EmbeddingConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    provider: Literal["dashscope", "openai"] = Field(
-        default="dashscope", description="Embedding 提供商"
+    provider: Literal["ollama", "dashscope", "openai", "flagembedding"] = Field(
+        default="flagembedding", description="Embedding 提供商(ollama本地/dashscope/openai/flagembedding)"
     )
-    model_name: str = Field(default="text-embedding-v4", description="模型名称")
-    api_key: str = Field(default="", description="API 密钥")
-    dimension: int = Field(default=1536, gt=0, description="向量维度")
+    model_name: str = Field(default="bge-m3", description="模型名称")
+    api_key: str = Field(default="", description="API 密钥(Ollama本地无需)")
+    dimension: int = Field(default=1024, gt=0, description="向量维度(bge-m3默认1024)")
     batch_size: int = Field(default=32, gt=0, description="批处理大小")
+    base_url: str = Field(
+        default="http://localhost:11434",
+        description="服务基础URL(Ollama本地地址)",
+    )
+    # FlagEmbedding 本地模型路径
+    model_path: str = Field(
+        default="./models/bge-m3",
+        description="FlagEmbedding 本地模型路径(HuggingFace/ModelScope格式)",
+    )
 
 
 class RerankConfig(BaseModel):
@@ -69,12 +78,21 @@ class RerankConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    provider: Literal["dashscope"] = Field(
-        default="dashscope", description="Rerank 提供商"
+    provider: Literal["ollama", "dashscope", "flagembedding"] = Field(
+        default="flagembedding", description="Rerank 提供商(ollama本地/vLLM/Xinference或dashscope或flagembedding)"
     )
-    model_name: str = Field(default="qwen3-rerank", description="模型名称")
-    api_key: str = Field(default="", description="API 密钥")
+    model_name: str = Field(default="bge-reranker-v2-m3", description="模型名称")
+    api_key: str = Field(default="", description="API 密钥(Ollama本地无需)")
     top_k: int = Field(default=10, gt=0, description="返回 top-k 结果")
+    base_url: str = Field(
+        default="http://localhost:8000",
+        description="服务基础URL(Ollama/vLLM/Xinference地址)",
+    )
+    # FlagEmbedding 本地模型路径
+    model_path: str = Field(
+        default="./models/bge-reranker-v2-m3",
+        description="FlagEmbedding 本地模型路径(HuggingFace/ModelScope格式)",
+    )
 
 
 class DatabaseConfig(BaseModel):
@@ -397,9 +415,14 @@ class DocumentConfig(BaseModel):
     ocr_use_angle_cls: bool = Field(default=True, description="是否使用角度分类")
 
     # 预处理配置
-    chunk_size: int = Field(default=1000, gt=0, description="分块大小")
+    chunking_mode: str = Field(
+        default="semantic",
+        description="分块模式: semantic(语义分块), fixed(固定大小分块)",
+    )
+    chunk_size: int = Field(default=1024, gt=0, description="分块大小(固定分块模式)")
     chunk_overlap: int = Field(default=200, ge=0, description="分块重叠大小")
-    min_chunk_size: int = Field(default=100, gt=0, description="最小分块大小")
+    min_chunk_size: int = Field(default=1000, gt=0, description="最小分块大小(语义分块模式)，确保召回率")
+    max_chunk_size: int = Field(default=2048, gt=0, description="最大分块大小(语义分块模式)")
 
 
 class IndexConfig(BaseModel):
@@ -842,6 +865,12 @@ def load_config(env_file: str | None = None) -> AppConfig:
     embedding_batch_size = os.getenv("EMBEDDING_BATCH_SIZE")
     if embedding_batch_size:
         config.embedding.batch_size = int(embedding_batch_size)
+    embedding_base_url = os.getenv("EMBEDDING_BASE_URL")
+    if embedding_base_url:
+        config.embedding.base_url = embedding_base_url
+    embedding_model_path = os.getenv("EMBEDDING_MODEL_PATH")
+    if embedding_model_path:
+        config.embedding.model_path = embedding_model_path
 
     # 加载 Rerank 配置
     rerank_api_key = os.getenv("RERANK_API_KEY")
@@ -856,6 +885,12 @@ def load_config(env_file: str | None = None) -> AppConfig:
     rerank_top_k = os.getenv("RERANK_TOP_K")
     if rerank_top_k:
         config.rerank.top_k = int(rerank_top_k)
+    rerank_base_url = os.getenv("RERANK_BASE_URL")
+    if rerank_base_url:
+        config.rerank.base_url = rerank_base_url
+    rerank_model_path = os.getenv("RERANK_MODEL_PATH")
+    if rerank_model_path:
+        config.rerank.model_path = rerank_model_path
 
     # 加载 PaddleOCR 配置
     paddleocr_api_url = os.getenv("PADDLEOCR_API_URL")
@@ -1019,6 +1054,73 @@ def load_config(env_file: str | None = None) -> AppConfig:
         config.summarization_middleware.safety_margin = float(
             summarization_safety_margin
         )
+
+    # 将所有相对路径统一解析到项目根目录下，避免因 cwd 不同而写到 C: 等位置
+    project_root = _find_project_root()
+
+    def _resolve_under_root(root: Path, p: Path | None) -> Path | None:
+        if p is None:
+            return None
+        return p if p.is_absolute() else (root / p).resolve()
+
+    # App 级目录
+    config.data_dir = _resolve_under_root(project_root, config.data_dir) or config.data_dir
+    config.storage_dir = _resolve_under_root(project_root, config.storage_dir) or config.storage_dir
+    config.log_dir = _resolve_under_root(project_root, config.log_dir) or config.log_dir
+
+    # 数据库/存储路径
+    config.database.sqlite_db_path = (
+        _resolve_under_root(project_root, config.database.sqlite_db_path)
+        or config.database.sqlite_db_path
+    )
+    config.database.chroma_db_path = (
+        _resolve_under_root(project_root, config.database.chroma_db_path)
+        or config.database.chroma_db_path
+    )
+    config.database.chroma_persist_directory = _resolve_under_root(
+        project_root, config.database.chroma_persist_directory
+    )
+    config.database.networkx_data_directory = (
+        _resolve_under_root(project_root, config.database.networkx_data_directory)
+        or config.database.networkx_data_directory
+    )
+    config.database.networkx_graph_path = (
+        _resolve_under_root(project_root, config.database.networkx_graph_path)
+        or config.database.networkx_graph_path
+    )
+
+    # 日志文件
+    config.log.file = _resolve_under_root(project_root, config.log.file)
+
+    # 文档/清洗目录
+    config.document.upload_temp_dir = (
+        _resolve_under_root(project_root, config.document.upload_temp_dir)
+        or config.document.upload_temp_dir
+    )
+    config.text_cleaning.archive_dir = (
+        _resolve_under_root(project_root, config.text_cleaning.archive_dir)
+        or config.text_cleaning.archive_dir
+    )
+    config.text_cleaning.cleaned_dir = (
+        _resolve_under_root(project_root, config.text_cleaning.cleaned_dir)
+        or config.text_cleaning.cleaned_dir
+    )
+
+    # Agent 存储
+    config.agent.checkpoint_db_path = (
+        _resolve_under_root(project_root, config.agent.checkpoint_db_path)
+        or config.agent.checkpoint_db_path
+    )
+    config.agent.langmem_db_path = (
+        _resolve_under_root(project_root, config.agent.langmem_db_path)
+        or config.agent.langmem_db_path
+    )
+
+    # 模板目录
+    config.draft.template_dir = (
+        _resolve_under_root(project_root, config.draft.template_dir)
+        or config.draft.template_dir
+    )
 
     return config
 

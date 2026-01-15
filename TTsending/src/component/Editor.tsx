@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRightLeft,
   BadgeCheck,
   Brain,
   ChevronRight,
+  Database,
   FileUp,
   Fingerprint,
   Sparkles,
   Upload,
+  Zap,
 } from 'lucide-react';
+import { API_URL } from '../config/api';
 
 const steps = ['开始', '添加指南', '选择来源', '获取草稿'];
 
@@ -37,12 +40,104 @@ export default function Editor() {
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
   const [selectedKB, setSelectedKB] = useState<string[]>(['policy', 'market']);
   const [uploadOwnDraft, setUploadOwnDraft] = useState(false);
+  const [isGeneratingVector, setIsGeneratingVector] = useState(false);
+  const [isPreprocessing, setIsPreprocessing] = useState(false);
+  const [vectorDataStatus, setVectorDataStatus] = useState<any>(null);
+  const [preprocessingProgress, setPreprocessingProgress] = useState<any>(null);
+  const [showPreprocessingProgress, setShowPreprocessingProgress] = useState(false);
 
   const toggleKnowledgeBase = (id: string) => {
     setSelectedKB(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
+
+  const fetchVectorDataStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/vector-data-generation/status`);
+      const data = await response.json();
+      if (data.success) {
+        setVectorDataStatus(data.data);
+      }
+    } catch (error) {
+      console.error('获取向量数据状态失败:', error);
+    }
+  };
+
+  const handleGenerateVectorData = async () => {
+    if (!confirm('确定要执行向量数据生成吗？这将执行完整的预处理流程。')) {
+      return;
+    }
+
+    setIsGeneratingVector(true);
+
+    try {
+      const response = await fetch(`${API_URL}/vector-data-generation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_dir: 'data/source/uploads',
+          output_dir: 'data/cleaned/documents',
+          skip_pdf_parsing: false,
+          skip_cleaning: false,
+          skip_chart_conversion: false,
+          skip_vector_index: false,
+          skip_bm25_index: false,
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`向量数据生成完成：${data.message}`);
+        await fetchVectorDataStatus();
+      } else {
+        alert(`生成失败：${data.message}`);
+      }
+    } catch (error) {
+      console.error('向量数据生成失败:', error);
+      alert(`生成失败：${error}`);
+    } finally {
+      setIsGeneratingVector(false);
+    }
+  };
+
+  const handleDataPreprocessing = async () => {
+    if (!confirm('确定要执行数据预处理吗？这将执行：OCR识别（MinerU）→ 内容清洗（LLM）→ 图转JSON')) {
+      return;
+    }
+
+    setIsPreprocessing(true);
+    setShowPreprocessingProgress(true);
+    setPreprocessingProgress(null);
+
+    try {
+      const response = await fetch(`${API_URL}/data-preprocessing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+      setPreprocessingProgress(data);
+
+      if (data.success) {
+        await fetchVectorDataStatus();
+      }
+    } catch (error) {
+      console.error('数据预处理失败:', error);
+      setPreprocessingProgress({
+        success: false,
+        message: `预处理失败: ${error}`,
+        error_details: String(error)
+      });
+    } finally {
+      setIsPreprocessing(false);
+    }
+  };
+
+  // 页面加载时获取向量数据状态
+  useEffect(() => {
+    fetchVectorDataStatus();
+  }, []);
 
   const progressItems = useMemo(
     () =>
@@ -91,7 +186,124 @@ export default function Editor() {
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-5">{progressItems}</div>
+        <div className="flex flex-wrap gap-5 items-center">{progressItems}
+
+          {/* 数据预处理按钮 */}
+          <div className="relative">
+            <button
+              onClick={handleDataPreprocessing}
+              disabled={isPreprocessing}
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl shadow-lg transition-all ${
+                isPreprocessing
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#4A90E2] via-[#2F6BCD] to-[#1E5799] text-white hover:shadow-[0_16px_40px_rgba(36,99,214,0.35)]'
+              }`}
+            >
+              {isPreprocessing ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  处理中...
+                </>
+              ) : (
+                <>
+                  <Database size={16} />
+                  数据预处理
+                </>
+              )}
+            </button>
+
+            {/* 预处理进度显示 */}
+            {showPreprocessingProgress && preprocessingProgress && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 z-50">
+                <h4 className="text-sm font-semibold text-slate-900 mb-3">预处理进度</h4>
+                <div className={`mb-3 p-3 rounded-lg ${
+                  preprocessingProgress.success
+                    ? 'bg-green-100 border border-green-300'
+                    : 'bg-red-100 border border-red-300'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{preprocessingProgress.success ? '✅' : '❌'}</span>
+                    <span className="text-sm font-medium">{preprocessingProgress.message}</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {preprocessingProgress.steps?.map((step: any, index: number) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                        step.status === 'completed'
+                          ? 'bg-green-500 text-white'
+                          : step.status === 'failed'
+                          ? 'bg-red-500 text-white'
+                          : step.status === 'running'
+                          ? 'bg-blue-500 text-white animate-pulse'
+                          : 'bg-slate-200 text-slate-500'
+                      }`}>
+                        {step.status === 'completed' ? '✓' : step.status === 'failed' ? '✗' : step.status === 'running' ? '⟳' : '○'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-700">
+                            {step.step_name === 'pdf_parsing' && '1. OCR识别（MinerU）'}
+                            {step.step_name === 'data_cleaning' && '2. 内容清洗'}
+                            {step.step_name === 'chart_conversion' && '3. 图转JSON'}
+                          </span>
+                          <span className="text-xs text-slate-500">{step.progress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              step.status === 'completed'
+                                ? 'bg-green-500'
+                                : step.status === 'failed'
+                                ? 'bg-red-500'
+                                : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${step.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {preprocessingProgress.error_details && (
+                  <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-200">
+                    <p className="text-xs font-medium text-red-700">错误详情：</p>
+                    <p className="text-xs text-red-600">{preprocessingProgress.error_details}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 向量数据生成按钮 */}
+          <button
+            onClick={handleGenerateVectorData}
+            disabled={isGeneratingVector}
+            className={`ml-auto inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl shadow-lg transition-all ${
+              isGeneratingVector
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-[#4A90E2] via-[#2F6BCD] to-[#1E5799] text-white hover:shadow-[0_16px_40px_rgba(36,99,214,0.35)]'
+            }`}
+          >
+            {isGeneratingVector ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                生成中...
+              </>
+            ) : (
+              <>
+                <Zap size={16} />
+                向量数据生成
+              </>
+            )}
+          </button>
+        </div>
 
         <div className="space-y-6">
           {/* Report Type Section */}

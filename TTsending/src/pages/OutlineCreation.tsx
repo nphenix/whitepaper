@@ -85,38 +85,118 @@ export default function OutlineCreation() {
     setPolishError(null);
     
     try {
-      // 避免网络/LLM调用异常导致请求“永久挂起”，按钮一直 disabled
+      // 方案C：真正消费后端流式响应（SSE）。
+      // 使用“无输出超时”(inactivity timeout)：只要服务端持续推送数据/心跳，就不会超时。
       const controller = new AbortController();
-      const timeoutMs = 180_000; // 3分钟：e2e 默认等待窗口一致；如需可再做成配置项
-      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      const inactivityTimeoutMs = 180_000; // 与后端 LLM_TIMEOUT 默认一致；服务端会持续发送心跳以保持连接活跃
+      let timeoutId = window.setTimeout(() => controller.abort(), inactivityTimeoutMs);
+      const resetInactivityTimeout = () => {
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => controller.abort(), inactivityTimeoutMs);
+      };
 
-      const response = await fetch(`${API_URL}/polish-outline`, {
+      const response = await fetch(`${API_URL}/polish-outline?stream=1`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
         body: JSON.stringify({ outlineText }),
         signal: controller.signal,
       });
+      resetInactivityTimeout();
+
+      const contentType = response.headers.get('content-type') || '';
+
+      // 兼容：如果后端未返回 SSE，则按旧 JSON 逻辑处理
+      if (!contentType.includes('text/event-stream')) {
+        window.clearTimeout(timeoutId);
+        const data = await response.json();
+        if (data.success && data.data && data.data.polishedOutline) {
+          setOutlineText(data.data.polishedOutline);
+        } else {
+          const errorMessage = data.error || data.message || 'AI优化失败，请稍后重试';
+          setPolishError(errorMessage);
+          console.error('API返回错误:', data);
+        }
+        return;
+      }
+
+      if (!response.body) {
+        throw new Error('流式响应不可用：response.body 为空');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let fullText = '';
+      let lastUiUpdate = 0;
+
+      const flushUi = () => {
+        const now = Date.now();
+        // 限流：避免每个 token 都触发一次 React render
+        if (now - lastUiUpdate > 120) {
+          lastUiUpdate = now;
+          setOutlineText(fullText);
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        resetInactivityTimeout();
+        buffer += decoder.decode(value, { stream: true });
+
+        let sepIndex: number;
+        while ((sepIndex = buffer.indexOf('\n\n')) >= 0) {
+          const rawEvent = buffer.slice(0, sepIndex).trim();
+          buffer = buffer.slice(sepIndex + 2);
+
+          // 心跳（SSE 注释）: `: ping`
+          if (!rawEvent || rawEvent.startsWith(':')) continue;
+
+          let eventName = 'message';
+          const dataLines: string[] = [];
+
+          for (const line of rawEvent.split('\n')) {
+            if (line.startsWith('event:')) {
+              eventName = line.slice('event:'.length).trim();
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice('data:'.length).trim());
+            }
+          }
+
+          const dataStr = dataLines.join('\n');
+          const payload = dataStr ? JSON.parse(dataStr) : null;
+
+          if (eventName === 'delta' && payload?.text) {
+            fullText += payload.text as string;
+            flushUi();
+          } else if (eventName === 'done') {
+            if (payload?.polishedOutline) {
+              fullText = payload.polishedOutline as string;
+            }
+            setOutlineText(fullText);
+          } else if (eventName === 'error') {
+            const msg = payload?.message || 'AI优化失败，请稍后重试';
+            throw new Error(msg);
+          }
+        }
+      }
 
       window.clearTimeout(timeoutId);
-      
-      const data = await response.json();
-      
-      if (data.success && data.data && data.data.polishedOutline) {
-        setOutlineText(data.data.polishedOutline);
-      } else {
-        const errorMessage = data.error || data.message || 'AI优化失败，请稍后重试';
-        setPolishError(errorMessage);
-        console.error('API返回错误:', data);
-      }
+      if (fullText.trim()) setOutlineText(fullText);
     } catch (error) {
       console.error('Error polishing outline:', error);
       // AbortError / DOMException：超时或用户终止
       if (error instanceof DOMException && error.name === 'AbortError') {
         setPolishError('AI优化超时，请稍后重试（建议缩短大纲内容或稍后再试）');
       } else {
-        setPolishError('AI优化失败，请检查网络连接');
+        const msg = error instanceof Error ? error.message : 'AI优化失败，请检查网络连接';
+        setPolishError(msg || 'AI优化失败，请检查网络连接');
       }
     } finally {
+      // 注意：此处不再依赖按钮文本变化来判断完成，而是以 SSE 结束为准
       setIsPolishing(false);
     }
   };

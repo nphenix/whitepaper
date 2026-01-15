@@ -169,6 +169,7 @@ class OutlineCreateRequest(BaseModel):
 
     outlineText: str = Field(..., description="大纲文本内容", min_length=10, max_length=50000)
     config: dict[str, Any] | None = Field(None, description="配置信息(可选)")
+    guide: str | None = Field(None, description="指南内容(Markdown格式,可选),创建大纲时自动保存")
 
     @field_validator("outlineText")
     @classmethod
@@ -361,6 +362,11 @@ class SourceSelectionRequest(BaseModel):
 
     selectedSources: list[int] = Field(default_factory=list, description="选中的来源ID列表")
     customUrls: list[str] = Field(default_factory=list, description="自定义URL列表", max_length=100)
+    uploadedFiles: list[str] = Field(
+        default_factory=list,
+        description="上传文件的document_id(UUID字符串)列表，将写入 outline_sources(source_type=uploaded_file)",
+        max_length=100,
+    )
     sourceDetails: dict[str, SourceDetail] | None = Field(
         None,
         description="来源详细信息,key为source_id(字符串格式),value为来源详细信息对象."
@@ -401,10 +407,23 @@ class SourceSelectionRequest(BaseModel):
         # 去重
         return list(set(validated_urls))
 
+    @field_validator("uploadedFiles")
+    @classmethod
+    def validate_uploaded_files(cls, v: list[str]) -> list[str]:
+        """验证上传文件document_id列表"""
+        if len(v) > 100:
+            msg = "上传文件数量不能超过100个"
+            raise ValueError(msg)
+        validated: list[str] = []
+        for doc_id in v:
+            validated.append(validate_uuid_format(str(doc_id), "上传文件document_id"))
+        # 去重
+        return list(set(validated))
+
     @model_validator(mode="after")
     def validate_at_least_one_source(self) -> "SourceSelectionRequest":
         """验证至少选择一个来源"""
-        if not self.selectedSources and not self.customUrls:
+        if not self.selectedSources and not self.customUrls and not self.uploadedFiles:
             msg = "至少需要选择一个来源(推荐文献或自定义URL)"
             raise ValueError(msg)
         return self

@@ -22,6 +22,12 @@ class OutlineOptimizationPrompts:
     提供大纲优化的提示词模板和辅助方法.
     支持变量替换(行业,数据库,报告类型等).
     支持默认约束条件(报告类型,语言,风格等).
+    
+    意图保护机制:
+    - 严格约束模式:添加硬性约束,确保优化不偏离用户意图
+    - 变更限制:限制新增、删除、修改章节的比例
+    - 关键词保留:确保核心关键词不被丢失
+    - 意图验证:要求LLM评估优化后的大纲与原始意图的相关性
     """
 
     # 默认约束条件(MVP使用,不依赖阶段6)
@@ -53,7 +59,49 @@ class OutlineOptimizationPrompts:
             "可读性:语言流畅,易于理解",
             "专业性:符合行业专业标准",
         ],
+        # 意图保护约束(新增)
+        "intent_protection_constraints": {
+            "max_added_ratio": 0.3,  # 最多添加30%的新章节
+            "max_deleted_ratio": 0.1,  # 最多删除10%的原始章节
+            "max_modified_ratio": 0.3,  # 最多修改30%的原始章节
+            "keyword_retention_threshold": 0.7,  # 关键词保留率阈值
+        },
     }
+
+    # 严格模式下的硬性约束
+    STRICT_CONSTRAINTS = """
+【强制性约束 - 必须严格遵守】
+
+1. 【不得删除用户核心章节】
+   - 绝对不能删除用户原始大纲中的一级章节(除非用户明确要求)
+   - 最多只能删除总章节数的10%
+   - 如果认为某些章节不必要,在change_description中详细说明原因
+
+2. 【新增章节必须合理】
+   - 新增章节数量不得超过原始章节数量的30%
+   - 新增的章节必须与用户原始意图直接相关
+   - 避免添加用户未要求的"标准章节",除非确实必要
+
+3. 【修改必须保持原意】
+   - 修改章节标题时,必须保留核心关键词
+   - 修改程度不能改变章节的本质含义
+   - 最多只能修改30%的原始章节
+
+4. 【必须保留用户核心意图】
+   - 优化后的大纲必须保留用户原始意图的核心要点
+   - 如果优化建议可能偏离用户意图,必须在optimization_summary中明确说明
+   - relevance_score必须真实反映与原始大纲的相关程度
+
+5. 【变更必须可追溯】
+   - 每个变更都必须有明确的change_description
+   - 每个修改都必须有合理的optimization_reason
+   - 如果返回的relevance_score低于0.7,说明可能存在意图偏离
+
+【优先级规则】
+- 意图保护 > 专业标准 > 结构规范
+- 如果上述约束与专业标准冲突,优先遵守意图保护约束
+- 如果无法在满足约束的前提下进行优化,请返回原始大纲(使用NONE类型)
+"""
 
     @classmethod
     def get_system_message(
@@ -62,6 +110,7 @@ class OutlineOptimizationPrompts:
         report_type: str = "市场研究报告",
         language: str = "中文",
         style: str = "专业,客观,数据驱动",
+        strict_mode: bool = True,
     ) -> str:
         """
         获取系统消息
@@ -71,6 +120,7 @@ class OutlineOptimizationPrompts:
             report_type: 报告类型
             language: 语言
             style: 风格
+            strict_mode: 是否使用严格模式(启用意图保护约束)
 
         Returns:
             系统消息字符串
@@ -85,13 +135,15 @@ class OutlineOptimizationPrompts:
             f"- {std}" for std in cls.DEFAULT_CONSTRAINTS["quality_standards"]
         )
 
-        return f"""你是一个专业的文档大纲优化专家,专注于{language}语言的{report_type}.
+        # 构建系统消息
+        message = f"""你是一个专业的文档大纲优化专家,专注于{language}语言的{report_type}.
 
 你的主要任务:
 1. 分析用户提供的文档大纲结构
 2. 识别大纲中的问题(缺失章节,逻辑顺序,层次结构等)
 3. 提供具体的优化建议(新增,修改,删除,移动,重排,合并,拆分)
 4. 确保优化后的大纲符合{report_type}的专业标准
+5. 【最重要】确保优化后的大纲不偏离用户的原始意图
 
 行业背景:
 - 目标行业: {industry_name}
@@ -109,12 +161,19 @@ class OutlineOptimizationPrompts:
 {quality_standards}
 
 优化原则:
-- 保持原意:尽量保留用户原始大纲的核心思想和结构
+- 【第一优先级】保持原意:必须保留用户原始大纲的核心思想和结构,任何优化都不能偏离用户意图
 - 增强逻辑:优化章节之间的逻辑关系和层次结构
 - 补充缺失:识别并补充缺失的重要章节或内容
-- 精简冗余:合并或删除重复或冗余的章节
+- 精简冗余:合并或删除重复或冗余的章节(但不能删除用户核心章节)
 - 规范命名:确保标题简洁明了,符合专业标准
 
+"""
+
+        # 如果启用严格模式,添加硬性约束
+        if strict_mode:
+            message += cls.STRICT_CONSTRAINTS
+
+        message += """
 输出格式要求:
 请以JSON格式返回优化结果,包含以下字段:
 - optimization_summary: 优化摘要信息
@@ -129,15 +188,15 @@ class OutlineOptimizationPrompts:
   - quality_score: 优化质量评分(0-1)
   - completeness_score: 完整度评分(0-1)
   - coherence_score: 连贯性评分(0-1)
-  - relevance_score: 相关性评分(0-1)
+  - relevance_score: 【关键】相关性评分(0-1),必须真实反映与原始大纲的相关程度
   - optimization_summary: 优化摘要描述
   - key_improvements: 关键改进点列表
-  - potential_issues: 潜在问题列表
+  - potential_issues: 潜在问题列表(如果relevance_score<0.7,必须说明原因)
 - optimized_items: 优化后的大纲项列表
   - original_item_id: 原始大纲项ID(新增项为null)
   - change_type: 变更类型(ADD/MODIFY/DELETE/MOVE/REORDER/MERGE/SPLIT/NONE)
-  - change_description: 变更描述
-  - optimization_reason: 优化原因
+  - change_description: 变更描述(必须有)
+  - optimization_reason: 优化原因(必须有)
   - optimization_suggestions: 优化建议列表
   - optimized_item: 优化后的大纲项
     - item_type: 项类型(SECTION/SUBSECTION/PARAGRAPH)
@@ -146,8 +205,9 @@ class OutlineOptimizationPrompts:
     - description: 描述
     - order: 排序顺序
 
-请基于以上原则,对用户提供的大纲进行优化分析,并提供具体的优化建议.
+请严格遵守上述约束,对用户提供的大纲进行优化。如果无法在满足所有约束的前提下进行优化,请返回原始大纲(所有项使用NONE类型),不要进行任何修改.
 """
+        return message
 
     @classmethod
     def get_optimization_prompt(cls) -> ChatPromptTemplate:

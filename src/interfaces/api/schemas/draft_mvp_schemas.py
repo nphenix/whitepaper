@@ -79,6 +79,17 @@ class DraftQualityAssessmentRequest(BaseModel):
     use_llm: bool = Field(True, description="是否使用LLM进行逻辑一致性评估")
 
 
+class DraftHTMLExportRequest(BaseModel):
+    """草稿HTML导出请求"""
+
+    draft_id: uuid.UUID | None = Field(None, description="草稿ID（优先级高于outline_id）")
+    outline_id: uuid.UUID | None = Field(None, description="大纲ID（导出该大纲下最新草稿）")
+    output_dir: str = Field("data/output/final", description="输出目录")
+    filename: str | None = Field(None, description="输出文件名（可选）")
+    datajson_dir: str | None = Field(None, description="datajson目录路径（可选）")
+    include_appendix: bool = Field(True, description="是否包含附录数据表格")
+
+
 # === 响应Schema ===
 
 
@@ -203,6 +214,17 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="错误消息")
     detail: str | None = Field(None, description="错误详情")
     code: str | None = Field(None, description="错误代码")
+
+
+class DraftHTMLExportResponse(BaseModel):
+    """草稿HTML导出响应"""
+
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="消息")
+    draft_id: str | None = Field(None, description="草稿ID")
+    outline_id: str | None = Field(None, description="大纲ID")
+    file_path: str = Field(..., description="生成的HTML文件路径")
+    file_url: str | None = Field(None, description="文件URL（如果支持）")
 
 
 # === 便利函数 ===

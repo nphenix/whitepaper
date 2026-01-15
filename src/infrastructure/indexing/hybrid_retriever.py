@@ -32,6 +32,14 @@ from typing import TYPE_CHECKING, Any
 from src.shared.config.llm_service import LLMService, get_llm_service
 from src.shared.utils.logging import get_logger
 
+# 检索结果缓存
+try:
+    from cachetools import TTLCache
+    CACHETOOLS_AVAILABLE = True
+except ImportError:
+    CACHETOOLS_AVAILABLE = False
+    TTLCache = None  # type: ignore[assignment, misc]
+
 if TYPE_CHECKING:
     from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
     from src.infrastructure.indexing.knowledge_graph import KnowledgeGraphBuilder
@@ -190,6 +198,17 @@ class HybridRetriever:
         self.config = config or HybridRetrieverConfig()
         self.llm_service = llm_service or get_llm_service()
 
+        # 初始化检索结果缓存
+        if CACHETOOLS_AVAILABLE and TTLCache:
+            self._retrieve_cache = TTLCache(
+                maxsize=500,  # 最多缓存500个查询
+                ttl=300  # 5分钟过期
+            )
+            logger.info("检索结果缓存已启用: maxsize=500, ttl=300秒")
+        else:
+            self._retrieve_cache = None
+            logger.warning("cachetools未安装，检索结果缓存已禁用")
+
         # 验证配置
         if not any([
             self.config.enable_vector and self.vector_index_builder,
@@ -238,19 +257,46 @@ class HybridRetriever:
 
         top_k = top_k or self.config.default_top_k
 
+        # 生成缓存key
+        cache_key = self._generate_cache_key(query_str, top_k, query_type, filters)
+
+        # 检查缓存
+        if self._retrieve_cache is not None and cache_key in self._retrieve_cache:
+            cached_results = self._retrieve_cache[cache_key]
+            logger.debug(
+                "使用缓存结果: query='%s', top_k=%s, results_count=%d",
+                query_str[:50],
+                top_k,
+                len(cached_results)
+            )
+            return cached_results
+
         try:
+            import time
+
+            t0 = time.monotonic()
             logger.info(
-                "执行混合检索: query=%s, top_k=%s, query_type=%s",
+                "执行混合检索: query='%s', top_k=%s, query_type=%s, filters=%s",
                 query_str[:50],
                 top_k,
                 query_type,
+                filters,
             )
 
             # 根据查询类型动态调整检索策略
             adjusted_config = self._adjust_config_for_query_type(query_type)
+            logger.debug(
+                "检索配置: vector=%s, bm25=%s, metadata=%s, graph=%s, rerank=%s",
+                adjusted_config.enable_vector,
+                adjusted_config.enable_bm25,
+                adjusted_config.enable_metadata,
+                adjusted_config.enable_graph,
+                adjusted_config.enable_rerank,
+            )
 
             # 并行执行多种检索
             if self.config.parallel_execution:
+                logger.debug("使用并行检索模式")
                 results = self._retrieve_parallel(
                     query_str=query_str,
                     top_k=top_k,
@@ -258,6 +304,7 @@ class HybridRetriever:
                     config=adjusted_config,
                 )
             else:
+                logger.debug("使用顺序检索模式")
                 results = self._retrieve_sequential(
                     query_str=query_str,
                     top_k=top_k,
@@ -265,15 +312,56 @@ class HybridRetriever:
                     config=adjusted_config,
                 )
 
+            retrieval_s = time.monotonic() - t0
+
+            # 详细记录每种检索模式的结果
+            vector_count = len(results.get("vector", []))
+            bm25_count = len(results.get("bm25", []))
+            metadata_count = len(results.get("metadata", []))
+            graph_count = len(results.get("graph", []))
+            total_count = vector_count + bm25_count + metadata_count + graph_count
+            
+            logger.info(
+                "检索结果汇总: vector=%d, bm25=%d, metadata=%d, graph=%d, total=%d, retrieval_time=%.3fs",
+                vector_count,
+                bm25_count,
+                metadata_count,
+                graph_count,
+                total_count,
+                retrieval_s,
+            )
+            
+            # 如果所有检索都失败，记录警告
+            if total_count == 0:
+                logger.warning(
+                    "所有检索模式都返回空结果: query='%s', vector_enabled=%s, bm25_enabled=%s, "
+                    "metadata_enabled=%s, graph_enabled=%s",
+                    query_str[:50] if query_str else "",
+                    adjusted_config.enable_vector,
+                    adjusted_config.enable_bm25,
+                    adjusted_config.enable_metadata,
+                    adjusted_config.enable_graph
+                )
+
             # 融合检索结果
             fused_results = self._fuse_results(results, config=adjusted_config)
+            logger.debug("融合后结果数: %d", len(fused_results))
 
             # 重排序(如果启用)
+            rerank_s: float | None = None
             if self.config.enable_rerank and len(fused_results) > 0:
+                logger.debug(
+                    "执行重排序: 输入结果数=%d, rerank_top_k=%d",
+                    len(fused_results),
+                    self.config.rerank_top_k,
+                )
+                t_rerank = time.monotonic()
                 reranked_results = self._rerank_results(
                     query_str=query_str,
                     results=fused_results[:self.config.rerank_top_k],
                 )
+                rerank_s = time.monotonic() - t_rerank
+                logger.debug("重排序后结果数: %d", len(reranked_results))
                 # 将重排序后的结果与未重排序的结果合并
                 reranked_node_ids = {r.node.node_id for r in reranked_results}
                 remaining_results = [
@@ -281,24 +369,102 @@ class HybridRetriever:
                     if r.node.node_id not in reranked_node_ids
                 ]
                 final_results = reranked_results + remaining_results
+                logger.debug(
+                    "合并后结果数: reranked=%d, remaining=%d, total=%d",
+                    len(reranked_results),
+                    len(remaining_results),
+                    len(final_results),
+                )
             else:
                 final_results = fused_results
+                logger.debug("跳过重排序，使用融合结果")
 
             # 限制返回数量
             final_results = final_results[:top_k]
 
-            logger.info(
-                "混合检索完成: query=%s, results_count=%s",
-                query_str[:50],
-                len(final_results),
-            )
+            # 计算平均相关性评分
+            if final_results:
+                scores = [r.score for r in final_results if hasattr(r, "score")]
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+                max_score = max(scores) if scores else 0.0
+                min_score = min(scores) if scores else 0.0
+                total_s = time.monotonic() - t0
+                logger.info(
+                    "混合检索完成: query='%s', results_count=%d, "
+                    "avg_score=%.3f, max_score=%.3f, min_score=%.3f, total_time=%.3fs, rerank_time=%s",
+                    query_str[:50],
+                    len(final_results),
+                    avg_score,
+                    max_score,
+                    min_score,
+                    total_s,
+                    f"{rerank_s:.3f}s" if isinstance(rerank_s, float) else "N/A",
+                )
+            else:
+                total_s = time.monotonic() - t0
+                logger.warning(
+                    "混合检索结果为空: query='%s', 可能原因: 1) 所有检索模式都失败；2) 知识库为空；3) 查询不匹配任何文档",
+                    query_str[:50],
+                )
+                logger.info("混合检索耗时: query='%s', total_time=%.3fs", query_str[:50], total_s)
+
+            # 保存结果到缓存
+            if self._retrieve_cache is not None:
+                try:
+                    self._retrieve_cache[cache_key] = final_results
+                    logger.debug(
+                        "检索结果已缓存: query='%s', results_count=%d",
+                        query_str[:50],
+                        len(final_results)
+                    )
+                except Exception as cache_error:
+                    logger.warning("保存检索结果到缓存失败: %s", cache_error)
 
             return final_results
 
         except Exception as exc:
-            error_msg = f"混合检索失败: {exc}"
+            error_msg = f"混合检索失败: query='{query_str[:50]}', error={exc}"
             logger.error(error_msg, exc_info=True)
             raise HybridRetrieverError(error_msg) from exc
+
+    def _generate_cache_key(
+        self,
+        query_str: str,
+        top_k: int,
+        query_type: QueryType | None,
+        filters: dict[str, Any] | None,
+    ) -> str:
+        """
+        生成检索缓存key
+
+        Args:
+            query_str: 查询文本
+            top_k: 返回结果数量
+            query_type: 查询类型
+            filters: 元数据过滤器
+
+        Returns:
+            缓存key字符串
+        """
+        import hashlib
+        import json
+
+        # 构建缓存key的组成部分
+        cache_data = {
+            "query": query_str[:200],  # 限制查询长度
+            "top_k": top_k,
+            "query_type": query_type.value if query_type else None,
+            "filters": filters,
+        }
+
+        # 转换为JSON并计算hash
+        try:
+            cache_str = json.dumps(cache_data, sort_keys=True, default=str)
+            cache_hash = hashlib.md5(cache_str.encode('utf-8')).hexdigest()
+            return f"retrieval:{cache_hash}"
+        except (TypeError, ValueError):
+            # 如果序列化失败，使用简单的方法
+            return f"retrieval:{query_str[:50]}:{top_k}:{query_type}"
 
     def _adjust_config_for_query_type(
         self,
@@ -391,47 +557,183 @@ class HybridRetriever:
         def retrieve_vector() -> list[NodeWithScore]:
             """向量检索"""
             if not config.enable_vector or not self.vector_index_builder:
+                logger.debug("向量检索已禁用或构建器不存在: enable_vector=%s, builder=%s",
+                            config.enable_vector, self.vector_index_builder is not None)
                 return []
             try:
-                return self.vector_index_builder.query(
+                results = self.vector_index_builder.query(
                     query_str=query_str,
                     top_k=top_k,
                     filters=None,  # 向量索引使用MetadataFilters
                 )
+                logger.debug(
+                    "向量检索成功: query='%s', results_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(results)
+                )
+                return results
             except Exception as exc:
-                logger.warning("向量检索失败: %s", exc)
+                logger.error(
+                    "向量检索失败: query='%s', error=%s",
+                    query_str[:50] if query_str else "",
+                    exc,
+                    exc_info=True
+                )
+                # 并行检索场景下：失败直接降级为空，避免 future.result() 抛异常造成额外 error traceback 噪声
                 return []
 
         def retrieve_bm25() -> list[NodeWithScore]:
             """BM25检索"""
             if not config.enable_bm25 or not self.bm25_index_builder:
+                logger.debug("BM25检索已禁用或构建器不存在: enable_bm25=%s, builder=%s",
+                            config.enable_bm25, self.bm25_index_builder is not None)
                 return []
+            
+            # 检查索引状态
             try:
-                return self.bm25_index_builder.query(
+                stats = self.bm25_index_builder.get_stats()
+                logger.debug(
+                    "BM25索引状态: is_built=%s, documents_count=%d, index_path=%s",
+                    stats.get("is_built", False),
+                    stats.get("documents_count", 0),
+                    stats.get("index_path", "unknown")
+                )
+            except Exception as e:
+                logger.debug("获取BM25索引状态失败: %s", e)
+            
+            try:
+                results = self.bm25_index_builder.query(
                     query_str=query_str,
                     top_k=top_k,
                     filters=filters,
                 )
+                logger.debug(
+                    "BM25检索成功: query='%s', results_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(results)
+                )
+                return results
             except Exception as exc:
-                logger.warning("BM25检索失败: %s", exc)
+                # BM25 在“索引未构建/不存在/尚未加载”等情况下是可预期的，生成流程应降级而非报错中断。
+                # 这里不再 raise，避免 _retrieve_parallel 再打一层 traceback。
+                msg = str(exc)
+                is_expected = (
+                    "索引未构建" in msg
+                    or "index file" in msg.lower()
+                    or "no such file" in msg.lower()
+                )
+                if is_expected:
+                    logger.debug(
+                        "BM25索引不可用，降级为空: query='%s', error=%s, index_path=%s",
+                        query_str[:50] if query_str else "",
+                        msg,
+                        self.bm25_index_builder.index_path if self.bm25_index_builder else "unknown",
+                    )
+                else:
+                    logger.warning(
+                        "BM25检索降级为空: query='%s', error=%s, index_path=%s",
+                        query_str[:50] if query_str else "",
+                        exc,
+                        self.bm25_index_builder.index_path if self.bm25_index_builder else "unknown",
+                        exc_info=True,
+                    )
                 return []
 
         def retrieve_metadata() -> list[NodeWithScore]:
             """元数据检索"""
             if not config.enable_metadata or not self.metadata_index_builder:
+                logger.debug("元数据检索已禁用或构建器不存在: enable_metadata=%s, builder=%s",
+                            config.enable_metadata, self.metadata_index_builder is not None)
                 return []
             try:
                 # 元数据检索需要将查询转换为元数据过滤条件
                 # 这里简化处理,使用filters进行查询
-                self.metadata_index_builder.query(
+                metadata_records = self.metadata_index_builder.query(
                     filters=filters,
                     limit=top_k,
                 )
-                # 将元数据记录转换为NodeWithScore对象
-                # 注意:这里需要根据实际需求实现转换逻辑
-                return []
+                
+                # 将元数据记录(dict)转换为NodeWithScore对象
+                results: list[NodeWithScore] = []
+                if not LLAMA_INDEX_AVAILABLE:
+                    logger.warning("LlamaIndex不可用，无法将元数据记录转换为NodeWithScore")
+                    return []
+                
+                from llama_index.core.schema import TextNode
+                
+                for record in metadata_records:
+                    try:
+                        # 从元数据记录构建TextNode
+                        # record包含: id, node_id, document_id, section_path, chunk_index, content, metadata_json等
+                        content = record.get("content", "") or record.get("text", "") or ""
+                        if not content:
+                            # 如果没有content字段，尝试从metadata中获取
+                            metadata_dict = record.get("metadata", {})
+                            if isinstance(metadata_dict, dict):
+                                content = metadata_dict.get("content", "")
+                        
+                        # 构建节点元数据
+                        node_metadata = {
+                            "node_id": record.get("node_id") or record.get("id"),
+                            "document_id": record.get("document_id"),
+                            "section_path": record.get("section_path"),
+                            "section_title": record.get("section_title"),
+                            "chunk_index": record.get("chunk_index"),
+                            "element_type": record.get("element_type"),
+                        }
+                        
+                        # 合并record中的其他字段到metadata
+                        for key, value in record.items():
+                            if key not in ["content", "text", "metadata_json", "id"] and value is not None:
+                                node_metadata[key] = value
+                        
+                        # 如果record中有metadata_json，解析并合并
+                        if record.get("metadata_json"):
+                            try:
+                                import json
+                                parsed_metadata = json.loads(record["metadata_json"])
+                                if isinstance(parsed_metadata, dict):
+                                    node_metadata.update(parsed_metadata)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                        
+                        # 创建TextNode
+                        node = TextNode(
+                            text=content,
+                            metadata=node_metadata,
+                        )
+                        
+                        # 设置node_id（如果提供）
+                        node_id = record.get("node_id") or record.get("id")
+                        if node_id:
+                            object.__setattr__(node, 'node_id', str(node_id))
+                        
+                        # 创建NodeWithScore(分数设为1.0,因为没有语义相似度)
+                        result = NodeWithScore(node=node, score=1.0)
+                        results.append(result)
+                    except Exception as exc:
+                        logger.warning(
+                            "从元数据记录构建节点失败: record_id=%s, error=%s",
+                            record.get("id", "unknown"),
+                            exc
+                        )
+                        continue
+                
+                logger.debug(
+                    "元数据检索成功: query='%s', records_count=%d, nodes_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(metadata_records),
+                    len(results)
+                )
+                return results
             except Exception as exc:
-                logger.warning("元数据检索失败: %s", exc)
+                logger.error(
+                    "元数据检索失败: query='%s', error=%s",
+                    query_str[:50] if query_str else "",
+                    exc,
+                    exc_info=True
+                )
+                # 并行检索场景下：失败直接降级为空，避免 future.result() 抛异常造成额外 error traceback 噪声
                 return []
 
         def retrieve_graph() -> list[NodeWithScore]:
@@ -465,11 +767,17 @@ class HybridRetriever:
                 for key, future in futures.items():
                     try:
                         results[key] = future.result(timeout=30)  # 30秒超时
+                        logger.debug("检索任务完成: mode=%s, results_count=%d", key, len(results[key]))
                     except concurrent.futures.TimeoutError:
-                        logger.warning("检索超时: %s", key)
+                        logger.error("检索超时: mode=%s, timeout=30s", key)
                         results[key] = []
                     except Exception as exc:
-                        logger.warning("检索执行失败: %s, error=%s", key, exc)
+                        logger.error(
+                            "检索执行失败: mode=%s, error=%s",
+                            key,
+                            exc,
+                            exc_info=True
+                        )
                         results[key] = []
 
         except Exception as exc:
@@ -507,34 +815,133 @@ class HybridRetriever:
                     query_str=query_str,
                     top_k=top_k,
                 )
+                logger.debug(
+                    "向量检索成功: query='%s', results_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(results["vector"])
+                )
             except Exception as exc:
-                logger.warning("向量检索失败: %s", exc)
+                logger.error(
+                    "向量检索失败: query='%s', error=%s",
+                    query_str[:50] if query_str else "",
+                    exc,
+                    exc_info=True
+                )
                 results["vector"] = []
 
         # BM25检索
         if config.enable_bm25 and self.bm25_index_builder:
+            # 检查索引状态
+            try:
+                stats = self.bm25_index_builder.get_stats()
+                logger.debug(
+                    "BM25索引状态: is_built=%s, documents_count=%d, index_path=%s",
+                    stats.get("is_built", False),
+                    stats.get("documents_count", 0),
+                    stats.get("index_path", "unknown")
+                )
+            except Exception as e:
+                logger.debug("获取BM25索引状态失败: %s", e)
+            
             try:
                 results["bm25"] = self.bm25_index_builder.query(
                     query_str=query_str,
                     top_k=top_k,
                     filters=filters,
                 )
+                logger.debug(
+                    "BM25检索成功: query='%s', results_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(results["bm25"])
+                )
             except Exception as exc:
-                logger.warning("BM25检索失败: %s", exc)
+                logger.error(
+                    "BM25检索失败: query='%s', error=%s, index_path=%s",
+                    query_str[:50] if query_str else "",
+                    exc,
+                    self.bm25_index_builder.index_path if self.bm25_index_builder else "unknown",
+                    exc_info=True
+                )
                 results["bm25"] = []
 
         # 元数据检索
         if config.enable_metadata and self.metadata_index_builder:
             try:
                 # 元数据检索需要特殊处理
-                self.metadata_index_builder.query(
+                metadata_records = self.metadata_index_builder.query(
                     filters=filters,
                     limit=top_k,
                 )
-                # 转换为NodeWithScore对象(需要根据实际需求实现)
+                
+                # 将元数据记录(dict)转换为NodeWithScore对象
                 results["metadata"] = []
+                if LLAMA_INDEX_AVAILABLE:
+                    from llama_index.core.schema import TextNode
+                    
+                    for record in metadata_records:
+                        try:
+                            # 从元数据记录构建TextNode
+                            content = record.get("content", "") or record.get("text", "") or ""
+                            if not content:
+                                metadata_dict = record.get("metadata", {})
+                                if isinstance(metadata_dict, dict):
+                                    content = metadata_dict.get("content", "")
+                            
+                            # 构建节点元数据
+                            node_metadata = {
+                                "node_id": record.get("node_id") or record.get("id"),
+                                "document_id": record.get("document_id"),
+                                "section_path": record.get("section_path"),
+                                "section_title": record.get("section_title"),
+                                "chunk_index": record.get("chunk_index"),
+                                "element_type": record.get("element_type"),
+                            }
+                            
+                            # 合并record中的其他字段
+                            for key, value in record.items():
+                                if key not in ["content", "text", "metadata_json", "id"] and value is not None:
+                                    node_metadata[key] = value
+                            
+                            # 解析metadata_json
+                            if record.get("metadata_json"):
+                                try:
+                                    import json
+                                    parsed_metadata = json.loads(record["metadata_json"])
+                                    if isinstance(parsed_metadata, dict):
+                                        node_metadata.update(parsed_metadata)
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                            
+                            # 创建TextNode
+                            node = TextNode(text=content, metadata=node_metadata)
+                            node_id = record.get("node_id") or record.get("id")
+                            if node_id:
+                                object.__setattr__(node, 'node_id', str(node_id))
+                            
+                            # 创建NodeWithScore
+                            result = NodeWithScore(node=node, score=1.0)
+                            results["metadata"].append(result)
+                        except Exception as exc:
+                            logger.warning(
+                                "从元数据记录构建节点失败: record_id=%s, error=%s",
+                                record.get("id", "unknown"),
+                                exc
+                            )
+                            continue
+                
+                logger.debug(
+                    "元数据检索成功: query='%s', records_count=%d, nodes_count=%d",
+                    query_str[:50] if query_str else "",
+                    len(metadata_records),
+                    len(results["metadata"])
+                )
             except Exception as exc:
-                logger.warning("元数据检索失败: %s", exc)
+                logger.error(
+                    "元数据检索失败: query='%s', error=%s",
+                    query_str[:50] if query_str else "",
+                    exc,
+                    exc_info=True
+                )
                 results["metadata"] = []
 
         # 知识图谱检索
@@ -916,6 +1323,19 @@ class HybridRetriever:
             return reranked_results
 
         except Exception as exc:
+            # 避免“每次检索都刷屏 + 重复失败”：对确定性环境问题（如 meta tensor）自动降级关闭 rerank
+            exc_str = str(exc)
+            if "meta tensor" in exc_str or "to_empty" in exc_str:
+                already_disabled = getattr(self, "_rerank_disabled", False)
+                self.config.enable_rerank = False
+                setattr(self, "_rerank_disabled", True)
+                if not already_disabled:
+                    logger.warning(
+                        "重排序模型初始化/设备加载失败，已自动禁用 rerank（后续不再尝试）: %s",
+                        exc_str,
+                    )
+                return results
+
             logger.warning("重排序失败,返回原始结果: %s", exc)
             return results
 

@@ -11,13 +11,19 @@
 
 import json
 import uuid
-from typing import Any
+from typing import Any, Callable, Optional
 
 from pydantic import BaseModel, Field
 
 from src.application.agent_base import AgentConfig, BaseAgent
 from src.application.agents.outline_optimization_prompts import (
     OutlineOptimizationPrompts,
+)
+from src.domain.agent.intent_tracker import (
+    UserIntentTracker,
+    IntentValidationError,
+    IntentConstraint,
+    CoreIntent,
 )
 from src.domain.agent.optimized_outline import (
     OptimizationChangeType,
@@ -124,17 +130,29 @@ class OutlineOptimizerAgent(BaseAgent):
         industry_name: str,
         database_names: list[str] | None = None,
         report_type: str | None = None,
+        progress_callback: Optional[Callable] = None,
+        user_intent: str | None = None,
+        strict_mode: bool = True,
     ) -> OptimizedOutline:
-        """优化大纲
+        """优化大纲（结构化输出）
 
         使用LLM分析大纲结构,并提供优化建议.
         支持新增章节,调整顺序,完善描述等优化类型.
+        返回结构化JSON后再解析为 OptimizedOutline。
+        
+        意图保护机制:
+        - 如果strict_mode=True,使用UserIntentTracker验证优化结果
+        - 如果验证失败,记录警告但仍然返回结果(允许用户决定是否接受)
+        - 如果relevance_score过低,在potential_issues中说明原因
 
         Args:
             outline: 原始大纲对象
             industry_name: 行业名称
             database_names: 数据库名称列表
             report_type: 报告类型(如果不指定则使用默认值)
+            progress_callback: 进度回调函数,接收流式输出的文本片段
+            user_intent: 用户原始意图(可选,如果没有提供则尝试从大纲描述提取)
+            strict_mode: 是否使用严格模式(启用意图保护验证)
 
         Returns:
             优化后的大纲对象(OptimizedOutline)
@@ -144,33 +162,64 @@ class OutlineOptimizerAgent(BaseAgent):
         """
         try:
             logger.info(
-                "开始优化大纲: %s, 行业=%s, 数据库=%s",
+                "开始优化大纲（流式）: %s, 行业=%s, 数据库=%s, strict_mode=%s",
                 outline.title,
                 industry_name,
                 database_names,
+                strict_mode,
             )
 
             # 使用指定的报告类型或默认值
             report_type = report_type or self.report_type
             database_names = database_names or []
 
+            # ========== 意图提取和约束创建 ==========
+            intent_tracker: UserIntentTracker | None = None
+            if strict_mode:
+                # 创建意图追踪器
+                intent_input = user_intent or outline.description or outline.title
+                intent_tracker = UserIntentTracker(
+                    user_input=intent_input,
+                    outline=outline,
+                )
+                
+                # 提取用户意图
+                try:
+                    core_intent = intent_tracker.extract_intent()
+                    logger.info(
+                        "用户意图提取完成: confidence=%.2f, keywords=%d",
+                        core_intent.confidence,
+                        len(core_intent.core_keywords),
+                    )
+                    
+                    # 创建意图保护约束
+                    intent_constraints = intent_tracker.create_preservation_constraints()
+                    intent_tracker.constraints = intent_constraints
+                    
+                except Exception as e:
+                    logger.warning("用户意图提取失败,继续优化但不进行意图验证: %s", e)
+                    intent_tracker = None
+
+            # ========== 原有优化逻辑 ==========
+
             # 1. 格式化大纲结构
             outline_structure = OutlineOptimizationPrompts.format_outline_structure(
                 outline.to_dict()
             )
 
-            # 2. 获取系统消息
+            # 2. 获取系统消息(启用严格模式)
             system_message = OutlineOptimizationPrompts.get_system_message(
                 industry_name=industry_name,
                 report_type=report_type,
                 language=self.language,
                 style=self.style,
+                strict_mode=strict_mode,
             )
 
             # 3. 构建提示词模板
             prompt_template = OutlineOptimizationPrompts.get_optimization_prompt()
 
-            # 4. 格式化提示词模板（只传入模板需要的变量，不包含 system_message）
+            # 4. 格式化提示词模板
             formatted_messages = prompt_template.format_messages(
                 outline_title=outline.title,
                 outline_description=outline.description or "",
@@ -180,14 +229,12 @@ class OutlineOptimizerAgent(BaseAgent):
                 report_type=report_type,
             )
 
-            # 5. 构建完整的消息列表（包含系统消息和用户消息）
+            # 5. 构建完整的消息列表
             messages = [
                 {"role": "system", "content": system_message},
             ] + formatted_messages
 
-            # 6. 使用结构化输出调用LLM
-            # 注意:这里直接使用模型调用,不使用create_agent
-            # 因为大纲优化是一个单次推理任务,不需要工具调用
+            # 6. 使用 LCEL 构建链，支持流式输出
             from langchain_core.output_parsers import JsonOutputParser
             from langchain_core.prompts import ChatPromptTemplate
 
@@ -197,15 +244,30 @@ class OutlineOptimizerAgent(BaseAgent):
             # 创建输出解析器
             output_parser = JsonOutputParser()
 
-            # 构建链
-            chain = prompt | self.model | output_parser
+            # 构建链：prompt -> model -> parser
+            #
+            # 关键修复：
+            # - 不使用 `JsonOutputParser().stream()`：很多模型在"JSON结构完整之前"不会产生可解析的chunk，
+            #   表现为长时间没有任何输出，前端容易误判为"超时/卡死"。
+            # - 显式限制 max_tokens：避免 `.env` 中 LLM_MAX_TOKENS=128000 导致过长输出、推理时间爆炸。
+            effective_max_tokens = (
+                int(self.config.max_tokens)
+                if getattr(self.config, "max_tokens", None)
+                else 4096
+            )
+            chain = prompt | self.model.bind(max_tokens=effective_max_tokens) | output_parser
 
-            # 执行链
+            logger.info(
+                "使用非流式LCEL链解析JSON输出: max_tokens=%s",
+                effective_max_tokens,
+            )
+
+            # 7. 非流式调用（更稳定）：一次性拿到可解析JSON
             result = chain.invoke({})
 
             logger.info("LLM优化结果: %s", json.dumps(result, ensure_ascii=False))
 
-            # 6. 解析优化结果并创建OptimizedOutline
+            # 8. 解析优化结果并创建OptimizedOutline
             optimized_outline = self._parse_optimization_result(
                 outline=outline,
                 result=result,
@@ -214,13 +276,126 @@ class OutlineOptimizerAgent(BaseAgent):
                 report_type=report_type,
             )
 
-            logger.info("大纲优化完成: %s", outline.title)
+            # ========== 意图验证（如果启用了严格模式） ==========
+            if strict_mode and intent_tracker and intent_tracker.core_intent:
+                try:
+                    # 验证优化结果
+                    validation_result = intent_tracker.validate_optimization(
+                        optimized_items=optimized_outline.optimized_items,
+                        original_outline=outline,
+                    )
+
+                    if not validation_result.is_valid:
+                        # 记录违规警告
+                        logger.warning(
+                            "大纲优化可能偏离用户意图: violations=%s, suggestions=%s",
+                            len(validation_result.violations),
+                            len(validation_result.suggestions),
+                        )
+
+                        # 将违规信息添加到potential_issues
+                        for violation in validation_result.violations[:5]:  # 最多添加5个
+                            if hasattr(optimized_outline, 'summary') and optimized_outline.summary:
+                                if violation not in optimized_outline.summary.potential_issues:
+                                    optimized_outline.summary.potential_issues.append(
+                                        f"[意图偏离警告] {violation}"
+                                    )
+
+                        # 添加建议到summary
+                        if validation_result.suggestions:
+                            if hasattr(optimized_outline, 'summary') and optimized_outline.summary:
+                                for suggestion in validation_result.suggestions[:3]:
+                                    if suggestion not in optimized_outline.summary.key_improvements:
+                                        optimized_outline.summary.key_improvements.append(
+                                            f"[意图保护建议] {suggestion}"
+                                        )
+
+                    # 更新relevance_score(如果LLM给的分数与验证结果不符)
+                    if hasattr(optimized_outline, 'summary') and optimized_outline.summary:
+                        # 计算关键词保留率作为相关性验证
+                        if validation_result.keyword_retention > 0:
+                            # 如果关键词保留率明显低于LLM报告的relevance_score,给出警告
+                            if (optimized_outline.summary.relevance_score > validation_result.keyword_retention + 0.2):
+                                logger.warning(
+                                    "LLM报告的relevance_score(%.2f)可能偏高, "
+                                    "关键词保留率仅为%.2f",
+                                    optimized_outline.summary.relevance_score,
+                                    validation_result.keyword_retention,
+                                )
+                                # 在potential_issues中添加说明
+                                optimized_outline.summary.potential_issues.append(
+                                    f"[相关性警告] LLM评估的相关性可能偏高, "
+                                    f"关键词保留率仅为{validation_result.keyword_retention:.1%}"
+                                )
+
+                except Exception as e:
+                    logger.warning("意图验证过程中发生错误: %s", e, exc_info=True)
+                    # 验证失败不影响返回结果,只是记录警告
+
+            logger.info("大纲流式优化完成: %s", outline.title)
             return optimized_outline
 
         except Exception as e:
-            logger.error("大纲优化失败: %s", e)
-            msg = f"大纲优化失败: {e}"
+            logger.error("大纲流式优化失败: %s", e)
+            msg = f"大纲流式优化失败: {e}"
             raise AgentExecutionError(msg) from e
+
+    def _merge_chunks(self, chunks: list) -> dict:
+        """合并多个 JSON chunks
+
+        Args:
+            chunks: 从流式输出获取的 chunk 列表
+
+        Returns:
+            合并后的字典
+        """
+        if not chunks:
+            return {"optimization_summary": {}, "optimized_items": []}
+
+        if len(chunks) == 1:
+            return chunks[0]
+
+        # 如果是字典列表，尝试递归合并
+        if all(isinstance(c, dict) for c in chunks):
+            merged = {}
+            for chunk in chunks:
+                merged.update(chunk)
+            return merged
+
+        # 如果是嵌套结构，尝试找到最外层对象
+        import re
+
+        # 将所有 chunk 转换为 JSON 字符串并尝试合并
+        json_str = ""
+        for chunk in chunks:
+            json_str += json.dumps(chunk, ensure_ascii=False)
+
+        # 尝试找到最外层的 JSON 对象
+        brace_count = 0
+        start_idx = None
+        end_idx = None
+
+        for i, char in enumerate(json_str):
+            if char == '{':
+                if start_idx is None:
+                    start_idx = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_idx is not None:
+                    end_idx = i + 1
+                    break
+
+        if start_idx is not None and end_idx is not None:
+            truncated = json_str[start_idx:end_idx]
+            try:
+                return json.loads(truncated)
+            except json.JSONDecodeError:
+                pass
+
+        # 如果无法合并，返回第一个 chunk
+        logger.warning("无法合并 chunks，返回第一个 chunk")
+        return chunks[0]
 
     def _parse_optimization_result(
         self,
@@ -589,7 +764,7 @@ def create_outline_optimizer_agent(
         model_provider=kwargs.get("model_provider"),
         model_name=kwargs.get("model_name"),
         temperature=kwargs.get("temperature", 0.3),
-        max_tokens=kwargs.get("max_tokens", 4000),
+        max_tokens=kwargs.get("max_tokens"),  # 不设置默认值，让模型自动决定
         enable_memory=kwargs.get("enable_memory", False),
         enable_error_handling=kwargs.get("enable_error_handling", True),
         enable_logging=kwargs.get("enable_logging", True),

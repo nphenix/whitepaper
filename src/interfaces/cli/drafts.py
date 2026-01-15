@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -137,5 +138,128 @@ def export_latest(
     console.print(f"- draft_id: {row['id']}")
     console.print(f"- outline_id: {row['outline_id']}")
     console.print(f"- file: {file_path}")
+
+
+@drafts_app.command("export-html")
+def export_html(
+    out_dir: str = typer.Option(
+        "data/output/final",
+        "--out-dir",
+        help="导出目录（相对项目根目录或绝对路径）",
+    ),
+    md_path: Optional[str] = typer.Option(
+        None,
+        "--md-path",
+        help="从Markdown文件直接导出HTML（不依赖数据库）。例如 data/output/drafts/outline_template_<id>.md",
+    ),
+    draft_id: Optional[str] = typer.Option(
+        None, "--draft-id", help="指定草稿ID（优先级高于 outline-id / latest）"
+    ),
+    outline_id: Optional[str] = typer.Option(
+        None, "--outline-id", help="指定大纲ID，导出该大纲下最新草稿"
+    ),
+    filename: Optional[str] = typer.Option(
+        None,
+        "--filename",
+        help="指定导出的文件名（例如 demo.html）。不传则使用 <timestamp>_<draft_id>_<title>.html",
+    ),
+    datajson_dir: Optional[str] = typer.Option(
+        None,
+        "--datajson-dir",
+        help="datajson目录路径（用于加载图表数据），如果不指定则尝试自动查找",
+    ),
+    retrieve: Optional[bool] = typer.Option(
+        None,
+        "--retrieve/--no-retrieve",
+        help=(
+            "md-path 模式下是否按章节触发 RAG/BM25 召回并填充正文。"
+            "默认自动判断：像“只有标题的模板md”就开启；否则关闭。"
+        ),
+    ),
+    top_k: int = typer.Option(
+        5,
+        "--top-k",
+        min=1,
+        max=20,
+        help="每章召回的 TopK（仅 --md-path 生效）",
+    ),
+    max_sections: Optional[int] = typer.Option(
+        None,
+        "--max-sections",
+        min=1,
+        help="最多处理的章节数（调试用，仅 --md-path 生效；不传表示全部）",
+    ),
+    bm25_index_json: Optional[str] = typer.Option(
+        None,
+        "--bm25-index-json",
+        help="指定 BM25 索引 JSON 文件路径（例如 data/bm25_index/kb_kb_xxx.json；仅 --md-path 生效）",
+    ),
+    vector_collection: Optional[str] = typer.Option(
+        None,
+        "--vector-collection",
+        help="指定 Chroma collection 名称（默认 whitepaper_documents；仅 --md-path 生效）",
+    ),
+):
+    """导出草稿为 HTML 文件（包含图表渲染和附录数据）"""
+    from src.application.services.html_export_service import HTMLExportService
+    from src.shared.exceptions.base_exceptions import ResourceNotFoundError, ValidationError
+
+    try:
+        # 使用服务层函数
+        export_service = HTMLExportService()
+        if md_path:
+            file_path = export_service.export_markdown_file_to_html(
+                md_path=md_path,
+                output_dir=out_dir,
+                filename=filename,
+                datajson_dir=datajson_dir,
+                include_appendix=True,
+                outline_id=outline_id,
+                retrieve=retrieve,
+                retrieval_top_k=top_k,
+                max_sections=max_sections,
+                bm25_index_json=bm25_index_json,
+                vector_collection_name=vector_collection,
+            )
+        else:
+            file_path = export_service.export_draft_to_html(
+                draft_id=draft_id,
+                outline_id=outline_id,
+                output_dir=out_dir,
+                filename=filename,
+                datajson_dir=datajson_dir,
+                include_appendix=True,
+            )
+
+        # 获取草稿信息用于显示（md_path 模式不依赖数据库）
+        draft = None
+        if not md_path:
+            draft_service = export_service.draft_service
+            if draft_id:
+                draft = draft_service.get_draft(uuid.UUID(draft_id))
+            elif outline_id:
+                drafts = draft_service.list_drafts(outline_id=uuid.UUID(outline_id))
+                draft = drafts[0] if drafts else None
+            else:
+                drafts = draft_service.list_drafts()
+                draft = drafts[0] if drafts else None
+
+        console.print("[bold green]HTML导出成功[/bold green]")
+        if draft:
+            console.print(f"- draft_id: {draft.id}")
+            console.print(f"- outline_id: {draft.outline_id}")
+        if md_path:
+            console.print(f"- md: {md_path}")
+        console.print(f"- file: {file_path}")
+        if datajson_dir:
+            console.print(f"- datajson目录: {datajson_dir}")
+
+    except ResourceNotFoundError as e:
+        raise typer.Exit(str(e))
+    except ValidationError as e:
+        raise typer.Exit(str(e))
+    except Exception as e:
+        console.print(f"[bold red]导出失败: {e}[/bold red]")
+        raise typer.Exit(1)
 
 

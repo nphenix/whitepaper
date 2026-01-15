@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -40,6 +41,24 @@ from src.infrastructure.indexing.hybrid_retriever import (
 )
 from src.shared.config.settings import get_config
 from src.shared.utils.logging import get_logger
+
+# 索引构建器导入（可选依赖）
+try:
+    from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
+    from src.infrastructure.indexing.knowledge_graph import KnowledgeGraphBuilder
+    from src.infrastructure.indexing.metadata_index import MetadataIndexBuilder
+    from src.infrastructure.indexing.vector_index import VectorIndexBuilder
+    from src.infrastructure.storage.chroma.connection import get_connection_manager as get_chroma_connection_manager
+    from src.infrastructure.storage.sqlite.connection import get_connection_manager as get_sqlite_connection_manager
+    INDEX_BUILDERS_AVAILABLE = True
+except ImportError:
+    INDEX_BUILDERS_AVAILABLE = False
+    BM25IndexBuilder = None  # type: ignore[assignment, misc]
+    KnowledgeGraphBuilder = None  # type: ignore[assignment, misc]
+    MetadataIndexBuilder = None  # type: ignore[assignment, misc]
+    VectorIndexBuilder = None  # type: ignore[assignment, misc]
+    get_chroma_connection_manager = None  # type: ignore[assignment, misc]
+    get_sqlite_connection_manager = None  # type: ignore[assignment, misc]
 
 if TYPE_CHECKING:
     from arq.connections import ArqRedis
@@ -572,10 +591,70 @@ class IndexingTasks:
                 default_top_k=hybrid_retriever_config.get("default_top_k", 10),
             )
 
-        # 创建知识库服务实例(只传递progress_service参数)
+        # 创建索引构建器实例（真实数据，不使用mock）
+        vector_index_builder = None
+        bm25_index_builder = None
+        metadata_index_builder = None
+        knowledge_graph_builder = None
+
+        if INDEX_BUILDERS_AVAILABLE:
+            # 创建向量索引构建器
+            if enable_vector:
+                try:
+                    vector_collection = vector_collection_name or f"kb_{kb_id_str or 'default'}_vector"
+                    vector_index_builder = VectorIndexBuilder(
+                        collection_name=vector_collection,
+                        connection_manager=get_chroma_connection_manager(),
+                    )
+                    logger.info("创建向量索引构建器: collection_name=%s", vector_collection)
+                except Exception as e:
+                    logger.warning("创建向量索引构建器失败: %s", e, exc_info=True)
+
+            # 创建BM25索引构建器
+            if enable_bm25:
+                try:
+                    bm25_path = bm25_index_path or f"./data/bm25_index/kb_{kb_id_str or 'default'}.pkl"
+                    # 确保目录存在
+                    Path(bm25_path).parent.mkdir(parents=True, exist_ok=True)
+                    bm25_index_builder = BM25IndexBuilder(index_path=bm25_path)
+                    logger.info("创建BM25索引构建器: index_path=%s", bm25_path)
+                except Exception as e:
+                    logger.warning("创建BM25索引构建器失败: %s", e, exc_info=True)
+
+            # 创建元数据索引构建器
+            if enable_metadata:
+                try:
+                    metadata_index_builder = MetadataIndexBuilder(
+                        table_name=metadata_table_name,
+                        connection_manager=get_sqlite_connection_manager(),
+                    )
+                    logger.info("创建元数据索引构建器: table_name=%s", metadata_table_name)
+                except Exception as e:
+                    logger.warning("创建元数据索引构建器失败: %s", e, exc_info=True)
+
+            # 创建知识图谱构建器
+            if enable_graph:
+                try:
+                    graph_name = f"kb_{kb_id_str or 'default'}_graph"
+                    knowledge_graph_builder = KnowledgeGraphBuilder(
+                        graph_name=graph_name,
+                    )
+                    logger.info("创建知识图谱构建器: graph_name=%s", graph_name)
+                except Exception as e:
+                    logger.warning("创建知识图谱构建器失败: %s", e, exc_info=True)
+
+        # 创建知识库服务实例（注入索引构建器）
         progress_service = get_progress_service()
         service = KnowledgeBaseService(
-            progress_service=progress_service
+            progress_service=progress_service,
+            vector_index_builder=vector_index_builder,
+            bm25_index_builder=bm25_index_builder,
+            metadata_index_builder=metadata_index_builder,
+            knowledge_graph_builder=knowledge_graph_builder,
+            enable_vector=enable_vector,
+            enable_bm25=enable_bm25,
+            enable_metadata=enable_metadata,
+            enable_graph=enable_graph,
         )
 
         # 使用传入的knowledge_base_id作为键存储

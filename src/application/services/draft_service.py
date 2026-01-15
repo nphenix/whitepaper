@@ -12,6 +12,7 @@
 import json
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from src.domain.agent.draft import (
@@ -122,8 +123,15 @@ class DraftService:
             # 导致生成任务看似成功但草稿永远“查不到”。
             self._ensure_user_exists(user_id)
 
+            # 自动加载 rag_media_manifest 到草稿 metadata
+            self._load_rag_media_manifest(draft)
+
             # 将领域模型转换为数据库记录
             draft_data = self._domain_to_db_record(draft, user_id)
+            
+            # drafts.outline_id 有外键约束指向 outlines(id)。
+            # 如果 outline 不存在，将 outline_id 设置为 None（外键约束允许 NULL）。
+            self._ensure_outline_exists_or_null(draft_data)
 
             # 检查草稿是否已存在
             existing = self.draft_repository.get_by_id(str(draft.id))
@@ -182,6 +190,190 @@ class DraftService:
             # 不应静默：否则后续保存 drafts 会失败且更难排查
             logger.error("自动创建系统用户失败: %s", e, exc_info=True)
             raise
+
+    def _ensure_outline_exists_or_null(self, draft_data: dict[str, Any]) -> None:
+        """验证 outline_id 对应的 outline 是否存在
+
+        说明：
+        - drafts.outline_id 有外键约束指向 outlines(id)
+        - 正常情况下，outline 应该在保存草稿前已经存在于数据库
+        - 如果不存在，抛出异常以便问题能被及时发现和修复
+        """
+        outline_id = draft_data.get("outline_id")
+        if not outline_id:
+            return  # 如果已经是 None，直接返回（允许 NULL）
+        
+        try:
+            outlines_repo = SQLiteAdapter(
+                table_name="outlines",
+                connection_manager=get_connection_manager(),
+                id_field="id",
+                created_at_field="created_at",
+                updated_at_field="updated_at",
+            )
+            
+            existing = outlines_repo.get_by_id(str(outline_id))
+            if existing:
+                return  # outline 存在，验证通过
+            
+            # outline 不存在，抛出异常以便问题能被及时发现
+            error_msg = (
+                f"outline 不存在于数据库: outline_id={outline_id}。"
+                "这通常表示 outline 未在保存草稿前正确保存到数据库。"
+                "请确保在保存草稿前调用 outline_service.save_outline() 保存 outline。"
+            )
+            logger.error(error_msg)
+            raise ResourceNotFoundError(error_msg)
+        except ResourceNotFoundError:
+            raise
+        except Exception as e:
+            # 如果检查失败，记录错误并抛出异常
+            error_msg = f"检查 outline 存在性失败: outline_id={outline_id}, 错误={e}"
+            logger.error(error_msg)
+            raise ValidationError(error_msg) from e
+
+    def _load_rag_media_manifest(self, draft: Draft) -> None:
+        """从文档预处理输出目录加载 rag_media_manifest 并设置到草稿 metadata
+
+        说明：
+        - 文档预处理会在 data/cleaned/documents/{doc_id}/ 目录下生成 rag_media_manifest.json
+        - 该文件包含 figure_name -> original_uuid -> json_file 的映射关系
+        - HTML 导出时需要此 manifest 来重命名图片文件
+        - 本方法自动从 draft.database_ids 中查找对应文档并加载其 manifest
+
+        Args:
+            draft: 草稿领域模型对象（会被修改 metadata）
+        """
+        try:
+            if not draft.database_ids:
+                logger.debug("草稿没有关联的文档ID，跳过加载 rag_media_manifest")
+                return
+
+            # 获取配置中的数据目录
+            from src.shared.config.settings import get_config
+            config = get_config()
+            cleaned_docs_dir = config.data_dir / "cleaned" / "documents"
+
+            if not cleaned_docs_dir.exists():
+                logger.debug("cleaned 文档目录不存在: %s", cleaned_docs_dir)
+                return
+
+            # 收集所有 manifest 条目（注意：不要覆盖草稿已有 manifest；应合并并去重）
+            all_manifest_items: list[dict[str, Any]] = []
+            try:
+                if isinstance(getattr(draft, "metadata", None), dict):
+                    existing = draft.metadata.get("rag_media_manifest")
+                    if isinstance(existing, list):
+                        all_manifest_items.extend([x for x in existing if isinstance(x, dict)])
+            except Exception:
+                pass
+            loaded_count = 0
+
+            for doc_id in draft.database_ids:
+                doc_id_str = str(doc_id)
+                candidate_paths: list[Path] = []
+
+                # 1) 兼容旧布局：data/cleaned/documents/{doc_id}/rag_media_manifest.json
+                legacy_manifest_path = (cleaned_docs_dir / doc_id_str) / "rag_media_manifest.json"
+                if legacy_manifest_path.exists() and legacy_manifest_path.is_file():
+                    candidate_paths.append(legacy_manifest_path)
+
+                # 2) 兼容当前布局：doc_id 往往出现在目录/文件名中（例如 */{doc_id}_*.pdf_extracted/rag_media_manifest.json）
+                if not candidate_paths:
+                    try:
+                        for p in cleaned_docs_dir.rglob("rag_media_manifest.json"):
+                            # 粗过滤：路径中包含 doc_id（避免全盘加载所有文档）
+                            if doc_id_str in str(p):
+                                candidate_paths.append(p)
+                    except Exception:
+                        candidate_paths = []
+
+                if not candidate_paths:
+                    logger.debug("manifest 文件不存在(已扫描): doc_id=%s", doc_id_str)
+                    continue
+
+                for manifest_path in candidate_paths:
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as f:
+                            manifest_data = json.load(f)
+
+                        # 兼容 manifest 格式：可能是列表或包含 items 的字典
+                        if isinstance(manifest_data, list):
+                            items = manifest_data
+                        elif isinstance(manifest_data, dict) and "items" in manifest_data:
+                            items = manifest_data["items"]
+                        else:
+                            items = []
+                            logger.warning("未知的 manifest 格式: %s", manifest_path)
+
+                        for item in items:
+                            if isinstance(item, dict) and "figure_name" in item:
+                                all_manifest_items.append(item)
+
+                        loaded_count += 1
+                        logger.debug("已加载 manifest: %s (条目数: %d)", manifest_path, len(items))
+                    except Exception as load_err:
+                        logger.warning("加载 manifest 失败: %s: %s", manifest_path, load_err)
+
+            # 如果按 database_ids 没加载到任何 manifest，兜底加载全部 manifest（适配目录命名不含 doc_id 的情况）
+            if loaded_count == 0:
+                try:
+                    logger.info(
+                        "未能按 database_ids 定位 manifest，开始兜底扫描全部 rag_media_manifest.json（数量可能较多）"
+                    )
+                    for manifest_path in cleaned_docs_dir.rglob("rag_media_manifest.json"):
+                        try:
+                            with open(manifest_path, "r", encoding="utf-8") as f:
+                                manifest_data = json.load(f)
+
+                            if isinstance(manifest_data, list):
+                                items = manifest_data
+                            elif isinstance(manifest_data, dict) and "items" in manifest_data:
+                                items = manifest_data["items"]
+                            else:
+                                items = []
+
+                            for item in items:
+                                if isinstance(item, dict) and "figure_name" in item:
+                                    all_manifest_items.append(item)
+                        except Exception:
+                            continue
+                    if all_manifest_items:
+                        loaded_count = 1
+                except Exception:
+                    pass
+
+            # 如果加载到任何 manifest 条目，设置到草稿 metadata
+            if all_manifest_items:
+                # 确保 metadata 是字典
+                if draft.metadata is None or not isinstance(draft.metadata, dict):
+                    draft.metadata = {}
+
+                # 去重：以 (figure_name, original_uuid, json_file) 为键，避免重复叠加
+                deduped: list[dict[str, Any]] = []
+                seen: set[tuple[str, str, str]] = set()
+                for item in all_manifest_items:
+                    if not isinstance(item, dict):
+                        continue
+                    k = (
+                        str(item.get("figure_name") or ""),
+                        str(item.get("original_uuid") or ""),
+                        str(item.get("json_file") or ""),
+                    )
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    deduped.append(item)
+
+                draft.metadata["rag_media_manifest"] = deduped
+                logger.info("已为草稿 %s 设置 rag_media_manifest: 文档数=%d, 总条目数=%d",
+                           draft.id, loaded_count, len(deduped))
+            else:
+                logger.debug("未找到任何 manifest 条目，draft.database_ids=%s", draft.database_ids)
+
+        except Exception as e:
+            # 不阻断主流程：manifest 加载失败不应影响草稿保存
+            logger.warning("加载 rag_media_manifest 失败(不影响草稿保存): %s", e, exc_info=True)
 
     def get_latest_draft_for_outline(self, outline_id: str | uuid.UUID) -> Draft:
         """根据 outline_id 获取最新草稿
@@ -350,7 +542,20 @@ class DraftService:
         database_ids_json = json.dumps(
             [str(db_id) for db_id in draft.database_ids], ensure_ascii=False
         )
-        metadata_json = json.dumps(draft.metadata, ensure_ascii=False, default=str)
+        # 将metadata中的UUID键转换为字符串，确保JSON序列化成功
+        def convert_uuid_keys(obj: Any) -> Any:
+            """递归转换字典中的UUID键为字符串"""
+            if isinstance(obj, dict):
+                return {str(k) if isinstance(k, uuid.UUID) else k: convert_uuid_keys(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_uuid_keys(item) for item in obj]
+            elif isinstance(obj, uuid.UUID):
+                return str(obj)
+            else:
+                return obj
+        
+        serializable_metadata = convert_uuid_keys(draft.metadata) if draft.metadata else {}
+        metadata_json = json.dumps(serializable_metadata, ensure_ascii=False, default=str)
 
         # 构建数据库记录
         # 兼容旧 drafts 表结构：status 字段存在 CHECK(status IN ('DRAFT','POLISHED','FINAL'))
@@ -428,12 +633,47 @@ class DraftService:
                 logger.warning("无效的草稿状态: %s, 使用默认值 DRAFT", status_str)
 
         # 创建领域模型对象
+        # NOTE: 旧数据/脏数据兼容：
+        # - drafts.outline_id 在某些历史/测试记录中可能为空或非法字符串
+        # - 如果直接 uuid.UUID(None/"") 会抛 TypeError，导致 list_drafts 整体失败
+        raw_outline_id = record.get("outline_id")
+        outline_id: uuid.UUID
+        try:
+            if raw_outline_id:
+                outline_id = uuid.UUID(str(raw_outline_id))
+            else:
+                raise ValueError("outline_id is empty")
+        except Exception:
+            # 容错：使用 draft.id 作为占位 outline_id（仅用于不依赖 outline 的场景，如导出/排错）
+            outline_id = uuid.UUID(record["id"])
+            logger.warning(
+                "草稿记录 outline_id 非法/为空，已使用 draft.id 作为占位: draft_id=%s, outline_id_raw=%r",
+                record.get("id"),
+                raw_outline_id,
+            )
+
+        raw_industry_id = record.get("industry_id")
+        industry_id: uuid.UUID
+        try:
+            if raw_industry_id:
+                industry_id = uuid.UUID(str(raw_industry_id))
+            else:
+                # 兼容旧逻辑：若 industry_id 缺失，用 outline_id 兜底
+                industry_id = outline_id
+        except Exception:
+            industry_id = outline_id
+            logger.warning(
+                "草稿记录 industry_id 非法/为空，已使用 outline_id 兜底: draft_id=%s, industry_id_raw=%r",
+                record.get("id"),
+                raw_industry_id,
+            )
+
         draft = Draft(
             id=uuid.UUID(record["id"]),
             title=record["title"],
             description=record.get("description") or None,
-            outline_id=uuid.UUID(record["outline_id"]),
-            industry_id=uuid.UUID(record.get("industry_id", record.get("outline_id"))),  # 如果没有industry_id,使用outline_id作为fallback
+            outline_id=outline_id,
+            industry_id=industry_id,
             database_ids=database_ids,
             status=status,
             sections=sections,

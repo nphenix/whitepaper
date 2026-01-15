@@ -119,8 +119,9 @@ class DocumentPreprocessor:
         if output_dir:
             self.output_dir = Path(output_dir)
         elif cleaning_enabled:
-            # 默认输出目录:data/cleaned/documents
-            self.output_dir = Path("data/cleaned/documents")
+            # 默认输出目录: <project_root>/data/cleaned/documents
+            # 注意：不要依赖 cwd（worker/api 运行目录可能不在项目根）
+            self.output_dir = self.config.data_dir / "cleaned" / "documents"
         else:
             self.output_dir = None
 
@@ -374,6 +375,68 @@ class DocumentPreprocessor:
                                 )
                         except Exception as e:
                             logger.warning(f"图表转JSON失败,不影响主流程: {e}")
+
+                    # ---- 统一补齐媒体元数据与 rag_media_manifest（无论图转JSON是否跳过） ----
+                    try:
+                        import json
+
+                        images_dir = output_dir / "images"
+                        datajson_dir = output_dir / "datajson"
+
+                        # 如果正文里没有保留任何图片引用，但目录中确实有图片，则兜底为“保留全部图片”
+                        # 目的：避免 LLM 清洗/格式差异导致 retained_images 为空，从而无法生成 manifest / 注入插图。
+                        if (not retained_images) and images_dir.exists():
+                            retained_images = {
+                                p.name
+                                for p in list(images_dir.glob("*.jpg"))
+                                + list(images_dir.glob("*.png"))
+                                + list(images_dir.glob("*.jpeg"))
+                                + list(images_dir.glob("*.webp"))
+                            }
+
+                        # 1) 写入 images / charts 元数据（供后续索引/检索节点 metadata 使用）
+                        try:
+                            if images_dir.exists():
+                                img_files = sorted(
+                                    [p.name for p in images_dir.glob("*") if p.is_file()],
+                                    key=lambda x: x,
+                                )
+                                if img_files:
+                                    doc.metadata["images"] = {
+                                        "count": len(img_files),
+                                        "files": img_files,
+                                        "directory": str(images_dir),
+                                    }
+                        except Exception:
+                            pass
+
+                        try:
+                            if datajson_dir.exists():
+                                json_files = sorted(
+                                    [p.name for p in datajson_dir.glob("*.json") if p.is_file()],
+                                    key=lambda x: x,
+                                )
+                                if json_files:
+                                    doc.metadata["charts"] = {
+                                        "count": len(json_files),
+                                        "charts": [{"name": Path(f).stem, "file": f} for f in json_files],
+                                        "directory": str(datajson_dir),
+                                    }
+                        except Exception:
+                            pass
+
+                        # 2) 始终生成 rag_media_manifest（只要 clean_content_list.json 存在）
+                        rag_media_manifest = self._generate_rag_media_manifest(output_dir, retained_images)
+
+                        # 3) 保存 rag_media_manifest 到 JSON 文件（幂等：覆盖写）
+                        if rag_media_manifest:
+                            manifest_file = output_dir / "rag_media_manifest.json"
+                            with open(manifest_file, "w", encoding="utf-8") as f:
+                                json.dump(rag_media_manifest, f, ensure_ascii=False, indent=2)
+                            logger.info("已保存 rag_media_manifest 到: %s", manifest_file)
+                            doc.metadata["rag_media_manifest"] = rag_media_manifest
+                    except Exception as e:
+                        logger.warning("生成/补齐 rag_media_manifest 失败（不影响主流程）: %s", e)
 
                 else:
                     # 没有 extracted_dir,使用简单的文件名保存(向后兼容)
@@ -1327,6 +1390,9 @@ class DocumentPreprocessor:
 
         Returns:
             List[Document]: 所有清洗后的 Document 列表
+
+        Raises:
+            ProcessingError: 如果启用清洗但清洗失败,会抛出异常终止任务
         """
 
         # 设置默认目录
@@ -1401,19 +1467,17 @@ class DocumentPreprocessor:
                 # 清洗文档
                 if self.enable_cleaning:
                     logger.info("开始清洗文档: %s", full_md_path)
-                    try:
-                        cleaned_doc = self._llm_ad_remover.clean_document(doc)
-                        cleaned_doc.metadata["pipeline"] = "llm_ad_cleaning"
-                        doc = cleaned_doc
-                    except Exception as e:
-                        logger.error("清洗文档失败: %s,保留原始内容", e)
-                        doc.metadata["pipeline"] = "loader_only"
-                        doc.metadata["cleaning_error"] = str(e)
+                    # 清洗失败时抛出异常，终止任务
+                    cleaned_doc = self._llm_ad_remover.clean_document(doc)
+                    cleaned_doc.metadata["pipeline"] = "llm_ad_cleaning"
+                    doc = cleaned_doc
+                    
+                    # 只有在启用清洗且清洗成功时才保存clean.md文件
+                    if self.output_dir:
+                        self._save_mineru_cleaned_document(extracted_dir, doc)
                 else:
                     doc.metadata["pipeline"] = "loader_only"
-
-                # 保存清洗后的文件
-                self._save_mineru_cleaned_document(extracted_dir, doc)
+                    # 如果未启用清洗，不保存clean.md文件
 
                 all_documents.append(doc)
                 self.stats["processed_documents"] += 1
@@ -1432,8 +1496,12 @@ class DocumentPreprocessor:
                 )
 
             except Exception as e:
-                logger.error("处理文件失败: %s, 错误: %s", full_md_path, e)
+                # 如果是清洗失败，抛出明确的异常给用户
+                error_msg = f"文档清洗失败: {full_md_path}, 错误: {e}"
+                logger.error(error_msg)
                 self.stats["failed_documents"] += 1
+                # 将异常重新抛出，终止任务
+                raise ProcessingError(error_msg) from e
 
         # 更新统计
         self.stats["end_time"] = datetime.now()
@@ -1910,6 +1978,138 @@ class DocumentPreprocessor:
             except Exception as e:
                 logger.error(f"处理 layout.json 失败: {e}")
 
+    def _generate_rag_media_manifest(
+        self,
+        output_dir: Path,
+        retained_images: set,
+    ) -> list[dict]:
+        """生成 rag_media_manifest 用于 RAG 流程的图片映射
+
+        从 clean_content_list.json 中提取图片信息,建立 figure_name 到 original_uuid 的映射.
+
+        Args:
+            output_dir: 输出目录路径 (包含 images/ 目录和 clean_content_list.json)
+            retained_images: 保留的图片文件名集合 (UUID 格式)
+
+        Returns:
+            list[dict]: rag_media_manifest 列表,每个元素包含 figure_name, original_uuid, json_file
+        """
+        import json
+        import uuid as uuid_module
+
+        manifest = []
+        
+        # 查找 clean_content_list.json
+        content_list_file = output_dir / "clean_content_list.json"
+        if not content_list_file.exists():
+            logger.warning("clean_content_list.json 不存在,无法生成 rag_media_manifest")
+            return manifest
+        
+        try:
+            with open(content_list_file, encoding="utf-8") as f:
+                content_list = json.load(f)
+        except Exception as e:
+            logger.error(f"读取 clean_content_list.json 失败: {e}")
+            return manifest
+        
+        # 查找 images 目录,建立 UUID 到文件名的映射
+        images_dir = output_dir / "images"
+        uuid_to_filename = {}
+        if images_dir.exists():
+            for img_file in images_dir.glob("*.jpg"):
+                try:
+                    # 验证是否为 UUID 格式
+                    uuid_module.UUID(img_file.stem)
+                    uuid_to_filename[img_file.stem] = img_file.name
+                except ValueError:
+                    # 非 UUID 格式,跳过
+                    continue
+        
+        # 处理每个图片条目
+        for item in content_list:
+            if not isinstance(item, dict):
+                continue
+            
+            if item.get("type") != "image":
+                continue
+            
+            img_path = item.get("img_path", "")
+            if not img_path:
+                continue
+            
+            # 提取图片文件名
+            img_filename = Path(img_path).name if "/" in img_path else img_path
+            
+            # 检查图片是否被保留
+            if img_filename not in retained_images:
+                continue
+            
+            # 提取 figure_name (从 image_caption 中找以'图'开头的标题)
+            figure_name = None
+            image_captions = item.get("image_caption", [])
+            if isinstance(image_captions, list):
+                for caption in image_captions:
+                    if caption and isinstance(caption, str) and caption.strip():
+                        if caption.startswith("图"):
+                            figure_name = caption.strip()
+                            break
+                # 如果没找到以'图'开头的标题,使用第一个标题
+                if not figure_name and image_captions:
+                    caption = image_captions[0]
+                    if caption and isinstance(caption, str):
+                        figure_name = caption.strip()
+            elif isinstance(image_captions, str) and image_captions:
+                figure_name = image_captions.strip()
+            
+            # 如果没有标题,使用 img_path 中的文件名
+            if not figure_name:
+                figure_name = img_filename
+            
+            # 确保 figure_name 以 .jpg 结尾
+            if not figure_name.endswith(".jpg"):
+                figure_name = f"{figure_name}.jpg"
+            
+            # 查找对应的 UUID 文件名
+            original_uuid = None
+            for uuid_stem, filename in uuid_to_filename.items():
+                if filename == img_filename:
+                    original_uuid = filename  # 已经是完整文件名
+                    break
+            
+            # 如果找不到 UUID 格式的文件,使用原始文件名
+            if not original_uuid:
+                original_uuid = img_filename
+            
+            # 查找对应的 JSON 文件
+            json_file = None
+            datajson_dir = output_dir / "datajson"
+            if datajson_dir.exists():
+                # 优先使用 figure_name 查找
+                json_candidate = f"{Path(figure_name).stem}.json"
+                json_path = datajson_dir / json_candidate
+                if json_path.exists():
+                    json_file = json_candidate
+                else:
+                    # 如果找不到,尝试使用 UUID 查找
+                    for json_file_path in datajson_dir.glob("*.json"):
+                        if Path(json_file_path).stem == Path(original_uuid).stem:
+                            json_file = json_file_path.name
+                            break
+            
+            manifest_entry = {
+                "figure_name": figure_name,
+                "original_uuid": original_uuid,
+                "json_file": json_file,
+            }
+            manifest.append(manifest_entry)
+            logger.debug(
+                "生成 rag_media_manifest 条目: figure_name=%s, original_uuid=%s, json_file=%s",
+                figure_name, original_uuid, json_file
+            )
+        
+        logger.info("生成 rag_media_manifest 完成: 共 %d 条目", len(manifest))
+        return manifest
+
     def _save_mineru_cleaned_document(
         self,
         extracted_dir: Path,
@@ -2050,8 +2250,25 @@ class DocumentPreprocessor:
                         stats.get("total_charts_found", 0),
                         stats.get("total_json_files_generated", 0),
                     )
+                    
+                    # 生成 rag_media_manifest
+                    rag_media_manifest = self._generate_rag_media_manifest(
+                        output_dir, retained_images
+                    )
+                    
+                    # 保存 rag_media_manifest 到 JSON 文件
+                    if rag_media_manifest:
+                        manifest_file = output_dir / "rag_media_manifest.json"
+                        import json
+                        with open(manifest_file, "w", encoding="utf-8") as f:
+                            json.dump(rag_media_manifest, f, ensure_ascii=False, indent=2)
+                        logger.info("已保存 rag_media_manifest 到: %s", manifest_file)
+                        
+                        # 更新 Document 的 metadata
+                        doc.metadata["rag_media_manifest"] = rag_media_manifest
+                        
                 except Exception as e:
-                    logger.warning("图表转JSON失败,不影响主流程: %s", e)
+                    logger.warning("图表转JSON失败,不影响主流程: {}", e)
 
         except Exception as e:
             logger.error("保存清洗后的文件失败: %s", e)

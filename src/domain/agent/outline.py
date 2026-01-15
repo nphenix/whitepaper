@@ -1066,6 +1066,88 @@ class Outline(BaseModel):
         time.sleep(0.001)  # 确保时间戳不同
         self.updated_at = datetime.now(UTC)
 
+    @staticmethod
+    def _detect_level_from_plain_text_title(title: str) -> int | None:
+        """
+        从纯文本标题中检测层级
+        
+        支持的格式:
+        - 中文数字: "一、", "二、", "三、", "（一）", "（二）" (二级标题)
+        - 中文括号: "（一）", "（二）" (二级标题)
+        - 数字点号: "1.", "1.1", "2.1.3", "2.1" (阿拉伯数字加点)
+        - "第X章" 格式: "第一章", "第二章", "第1章"
+        - 短横线列表: "- 项目", "  - 子项目" (支持缩进)
+        
+        Returns:
+            检测到的层级(1-6),如果无法识别则返回None
+        """
+        import re
+        
+        # 去除首尾空白
+        title = title.strip()
+        
+        # 中文数字映射
+        cn_nums = "一二三四五六七八九十"
+        
+        # 模式0: 短横线列表项 "- 项目" 或 "  - 子项目"
+        # 计算缩进级别来确定层级
+        indent_count = 0
+        temp_title = title
+        while temp_title.startswith(" ") or temp_title.startswith("　"):  # 支持空格和中文空格
+            indent_count += 1
+            temp_title = temp_title[1:]
+        
+        if temp_title.startswith("-"):
+            # 基础层级是 2（作为一级标题下的子项）
+            # 根据缩进增加层级
+            level = 2 + (indent_count // 2)  # 每2个空格算一级
+            return min(level, 6)  # 最多6级
+        
+        # 模式1: "一、" 或 "二、" (一级标题)
+        if len(title) >= 2 and title[0] in cn_nums and title[1] == "、":
+            return 1
+        
+        # 模式2: "（一）" 或 "（二）" (二级标题)
+        if title.startswith("（") and title.endswith("）") and len(title) == 4:
+            inner = title[1:3]
+            if inner in cn_nums:
+                return 2
+        
+        # 模式3: "第X章" 或 "第X节" (一级标题)
+        match = re.match(r"^第([一二三四五六七八九十0-9]+)[章节]", title)
+        if match:
+            num_str = match.group(1)
+            # 如果是中文数字
+            if num_str in cn_nums:
+                return 1
+            # 如果是阿拉伯数字
+            if num_str.isdigit():
+                return 1
+        
+        # 模式4: 阿拉伯数字加点 "1.", "2." (一级标题)
+        match = re.match(r"^(\d+)\.", title)
+        if match:
+            return 1
+        
+        # 模式5: 数字嵌套 "1.1", "2.1.3" (根据点号数量确定层级)
+        match = re.match(r"^[\d\.]+$", title.split()[0] if title.split() else "")
+        if match:
+            num_part = title.split()[0] if title.split() else ""
+            dot_count = num_part.count(".")
+            if dot_count == 1:
+                return 2  # 1.1
+            elif dot_count == 2:
+                return 3  # 1.1.1
+            elif dot_count >= 3:
+                return 4  # 更深层级
+        
+        # 模式6: "2.1 全球市场" - 数字+空格+标题 (一级标题)
+        match = re.match(r"^(\d+\.\d*)\s+", title)
+        if match:
+            return 1
+        
+        return None
+    
     @classmethod
     def create_from_text(
         cls,
@@ -1077,10 +1159,14 @@ class Outline(BaseModel):
     ) -> "Outline":
         """
         从文本创建大纲
-
+        
+        支持Markdown格式和纯文本格式:
+        - Markdown格式: "# 标题", "## 二级标题", "### 三级标题"
+        - 纯文本格式: "一、标题", "（一）标题", "1. 标题", "2.1 标题"
+        
         Args:
             title: 大纲标题
-            text: 大纲文本(支持Markdown格式)
+            text: 大纲文本(支持Markdown格式或纯文本格式)
             industry_id: 所属行业ID
             database_ids: 数据库ID列表
             description: 大纲描述
@@ -1101,30 +1187,59 @@ class Outline(BaseModel):
         lines = text.strip().split("\n")
         parent_stack: list[tuple[uuid.UUID, int]] = []  # (父级ID, 层级)栈
         order_counter: dict[int, int] = {}  # 每层的顺序计数器
-
-        for line in lines:
+        
+        # 检测是否为Markdown格式
+        has_markdown_header = any(line.strip().startswith("#") for line in lines if line.strip())
+        is_markdown_format = has_markdown_header
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
             if not line.strip():
+                i += 1
                 continue
 
-            # 检测层级(通过#号)
+            # 检测层级
             level = 1
             item_type = OutlineItemType.SECTION
             stripped_line = line.strip()
-
-            # Markdown格式: # 标题
-            if stripped_line.startswith("#"):
-                level = stripped_line.count("#")
-                level = min(level, 6)  # 最多6级
-                title_text = stripped_line.lstrip("#").strip()
+            
+            if is_markdown_format:
+                # Markdown格式: # 标题
+                if stripped_line.startswith("#"):
+                    level = stripped_line.count("#")
+                    level = min(level, 6)  # 最多6级
+                    title_text = stripped_line.lstrip("#").strip()
+                    if level == 1:
+                        item_type = OutlineItemType.SECTION
+                    elif level == 2:
+                        item_type = OutlineItemType.SUBSECTION
+                    else:
+                        item_type = OutlineItemType.PARAGRAPH
+                else:
+                    # 非Markdown标题行，跳过
+                    i += 1
+                    continue
+            else:
+                # 纯文本格式: 尝试从行首识别层级
+                detected_level = cls._detect_level_from_plain_text_title(stripped_line)
+                if detected_level is None:
+                    # 无法识别的行，可能是描述内容，跳过
+                    i += 1
+                    continue
+                
+                level = detected_level
+                # 根据层级确定类型
                 if level == 1:
                     item_type = OutlineItemType.SECTION
                 elif level == 2:
                     item_type = OutlineItemType.SUBSECTION
                 else:
                     item_type = OutlineItemType.PARAGRAPH
-            else:
-                # 非Markdown行,跳过(不作为单独的大纲项)
-                continue
+                
+                # 提取标题（去除序号部分）
+                title_text = cls._extract_title_from_plain_text(stripped_line)
 
             # 获取父级ID
             parent_id = None
@@ -1136,6 +1251,33 @@ class Outline(BaseModel):
                 if parent_stack:
                     parent_id = parent_stack[-1][0]
 
+            # 收集后续的描述内容（直到下一个标题行或文件结束）
+            description_lines: list[str] = []
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j].strip()
+                # 如果遇到空行，跳过但保留在描述中（用于分隔）
+                if not next_line:
+                    description_lines.append("")
+                # 如果遇到下一个标题行，停止收集
+                elif is_markdown_format and next_line.startswith("#"):
+                    break
+                elif not is_markdown_format:
+                    # 纯文本格式：检查下一行是否是标题
+                    if cls._detect_level_from_plain_text_title(next_line) is not None:
+                        break
+                    # 否则作为描述内容
+                    description_lines.append(next_line)
+                else:
+                    description_lines.append(next_line)
+                j += 1
+
+            # 合并描述内容
+            description_text = "\n".join(description_lines).strip() if description_lines else None
+            # 如果描述为空，设置为None
+            if not description_text:
+                description_text = None
+
             # 创建大纲项
             order = order_counter.get(level, 0) + 1
             order_counter[level] = order
@@ -1146,7 +1288,7 @@ class Outline(BaseModel):
                 level=level,
                 title=title_text,
                 order=order,
-                description=None,
+                description=description_text,
                 is_optimized=False,
                 original_title=None,
                 original_description=None,
@@ -1158,7 +1300,41 @@ class Outline(BaseModel):
             if item_type != OutlineItemType.CONTENT:
                 parent_stack.append((item.id, level))
 
+            # 移动到下一个标题行（或文件结束）
+            i = j
+
         return outline
+    
+    @staticmethod
+    def _extract_title_from_plain_text(line: str) -> str:
+        """
+        从纯文本行中提取标题（去除序号部分）
+        
+        Args:
+            line: 原始行内容
+            
+        Returns:
+            提取后的标题
+        """
+        import re
+        line = line.strip()
+        
+        # 模式0: 去除开头的短横线和空格 "- " 或 "  - "
+        line = re.sub(r"^[-*•]\s*", "", line)
+        
+        # 模式1: 去除 "一、" 或 "二、"
+        line = re.sub(r"^[一二三四五六七八九十]、\s*", "", line)
+        
+        # 模式2: 去除 "（一）" 或 "（二）"
+        line = re.sub(r"^（[一二三四五六七八九十]）\s*", "", line)
+        
+        # 模式3: 去除 "第X章" 或 "第X节"
+        line = re.sub(r"^第[一二三四五六七八九十0-9]+[章节]\s*", "", line)
+        
+        # 模式4: 去除 "1." 或 "1.1" 或 "2.1"
+        line = re.sub(r"^[\d\.]+\s*", "", line)
+        
+        return line.strip()
 
     @classmethod
     def create_from_structure(

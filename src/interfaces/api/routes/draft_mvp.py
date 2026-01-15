@@ -17,6 +17,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Response,
     status,
 )
 
@@ -39,6 +40,8 @@ from src.interfaces.api.schemas.draft_mvp_schemas import (
     DraftDetailResponse,
     DraftGenerateRequest,
     DraftGenerateResponse,
+    DraftHTMLExportRequest,
+    DraftHTMLExportResponse,
     DraftListResponse,
     DraftQualityAssessmentRequest,
     DraftQualityAssessmentResponse,
@@ -66,7 +69,7 @@ router = APIRouter(prefix="/api/v1/drafts", tags=["草稿管理"])
 _outline_optimization_service: OutlineOptimizationService | None = None
 _industry_selection_service: IndustrySelectionService | None = None
 _llm_service: LLMService | None = None
-_hybrid_retriever: HybridRetriever | None = None
+# 注意：_hybrid_retriever 已移除，现在使用 get_hybrid_retriever() 函数动态创建
 
 # 草稿服务(使用数据库存储)
 _draft_service: Any | None = None
@@ -108,16 +111,323 @@ def get_llm_service() -> LLMService:
     return _llm_service
 
 
-def get_hybrid_retriever() -> HybridRetriever | None:
-    """获取混合检索引擎实例(可选)
+def get_hybrid_retriever(knowledge_base_id: str | list[str] | None = None) -> HybridRetriever:
+    """获取混合检索引擎实例
+
+    与 frontend_adapter.py 中的实现保持一致，支持 knowledge_base_id 参数。
+
+    Args:
+        knowledge_base_id: 知识库ID（可选）。支持以下形式：
+                          - str: 单个知识库ID
+                          - list[str]: 多个知识库ID，将创建 MultiKBHybridRetriever
+                          - None: 使用默认配置（向后兼容）
 
     Returns:
-        HybridRetriever: 混合检索引擎实例,如果未配置则返回None
+        HybridRetriever 或 MultiKBHybridRetriever: 混合检索引擎实例
+
+    Raises:
+        ImportError: 如果LlamaIndex未安装
+        HybridRetrieverError: 如果初始化失败（如配置错误、索引构建器创建失败等）
+        ValueError: 如果参数无效
+
+    Note:
+        - 如果提供了单个 knowledge_base_id：
+          - 向量索引collection: kb_{knowledge_base_id}_vector
+          - BM25索引文件: 优先使用 ./data/bm25_index/kb_kb_*.json；
+            ./data/bm25_index/kb_{knowledge_base_id}.pkl 属于历史/废弃命名，仅作为兜底兼容。
+          - 元数据索引表: kb_{knowledge_base_id}_metadata
+        - 如果提供了多个 knowledge_base_id 列表：
+          - 为每个ID创建独立的 HybridRetriever
+          - 使用 MultiKBHybridRetriever 包装，查询时并行检索并融合结果
+        - 如果不提供 knowledge_base_id（向后兼容），使用默认配置
+        - 如果初始化失败，会抛出异常而不是返回None，确保问题能被及时发现
     """
-    global _hybrid_retriever
-    # TODO: 从配置或服务中获取HybridRetriever实例
-    # 当前版本暂时返回None,后续版本将实现
-    return _hybrid_retriever
+    import json
+    import re
+    from pathlib import Path
+
+    from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
+    from src.infrastructure.indexing.hybrid_retriever import HybridRetriever, HybridRetrieverError
+    from src.infrastructure.indexing.metadata_index import MetadataIndexBuilder
+    from src.infrastructure.indexing.multi_kb_retriever import MultiKBHybridRetriever
+    from src.infrastructure.indexing.vector_index import VectorIndexBuilder
+    from src.infrastructure.storage.chroma.connection import get_chroma_connection_manager
+    from src.infrastructure.storage.sqlite.connection import get_sqlite_connection_manager
+    from src.shared.config.llm_service import get_llm_service
+
+    # 只接受形如 kb_<hex> 的知识库ID；其它（尤其是 UUID 带 "-"）一律视为“未指定”，走默认自动发现。
+    # 背景：outline.database_ids 是业务层“行业数据库/数据集”UUID，不等同于知识库ID；若误传会导致
+    # metadata 表名包含 "-" 从而触发 SQLite "near '-': syntax error"。
+    _KB_ID_RE = re.compile(r"^kb_[0-9a-f]{16,}$", re.IGNORECASE)
+
+    def _is_valid_kb_id(value: str) -> bool:
+        return bool(value) and bool(_KB_ID_RE.match(value.strip()))
+
+    def _find_latest_legacy_bm25_index_path() -> str | None:
+        """兼容旧索引命名：
+
+        兜底时从 ./data/bm25_index/kb_kb_*.json 选择“documents 数最多”的一个（更可能是多文档合并索引），
+        再用 mtime 破同；返回对应 .pkl 路径。
+        """
+        try:
+            bm25_dir = Path("./data/bm25_index")
+            if not bm25_dir.exists():
+                return None
+            candidates = list(bm25_dir.glob("kb_kb_*.json"))
+            if not candidates:
+                return None
+
+            scored: list[tuple[int, float, Path]] = []
+            for jf in candidates:
+                doc_count = 0
+                try:
+                    data = json.loads(jf.read_text(encoding="utf-8"))
+                    docs = data.get("documents") or []
+                    if isinstance(docs, list):
+                        doc_count = len(docs)
+                except Exception:
+                    doc_count = 0
+                try:
+                    mtime = float(jf.stat().st_mtime)
+                except Exception:
+                    mtime = 0.0
+                scored.append((doc_count, mtime, jf))
+
+            scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+            best = scored[0][2]
+            return str(best).replace(".json", ".pkl")
+        except Exception:
+            return None
+
+    def _find_bm25_index_for_kb(kb_id: str) -> str:
+        """为指定知识库查找 BM25 索引文件"""
+        # 优先使用新格式 kb_{kb_id}.json
+        pkl_path = f"./data/bm25_index/kb_{kb_id}.pkl"
+        json_path = pkl_path.replace('.pkl', '.json')
+
+        if Path(json_path).exists():
+            logger.debug("找到新格式 BM25 索引: %s", json_path)
+            return pkl_path  # 返回 pkl 路径（BM25IndexBuilder 会自动查找 json）
+
+        if Path(pkl_path).exists():
+            logger.debug("找到旧格式 BM25 索引: %s", pkl_path)
+            return pkl_path
+
+        # 回退到最新的旧索引
+        legacy_path = _find_latest_legacy_bm25_index_path()
+        if legacy_path:
+            logger.info("知识库 %s 未找到专用索引，回退到: %s", kb_id, legacy_path)
+            return legacy_path
+
+        logger.warning("知识库 %s 没有任何 BM25 索引可用", kb_id)
+        return pkl_path  # 返回一个不存在的路径，让 BM25IndexBuilder 处理
+
+    # 处理 knowledge_base_id 参数
+    if knowledge_base_id is None:
+        kb_ids: list[str] = []
+        single_id: str | None = None
+    elif isinstance(knowledge_base_id, str):
+        if not _is_valid_kb_id(knowledge_base_id):
+            logger.warning(
+                "忽略非法 knowledge_base_id（将走默认自动发现）: %s",
+                knowledge_base_id,
+            )
+            kb_ids = []
+            single_id = None
+            knowledge_base_id = None
+        else:
+            kb_ids = []
+            single_id = knowledge_base_id.strip()
+    else:
+        # 列表形式
+        raw_ids = knowledge_base_id
+        valid_ids = [x.strip() for x in raw_ids if isinstance(x, str) and _is_valid_kb_id(x)]
+        invalid_ids = [x for x in raw_ids if not (isinstance(x, str) and _is_valid_kb_id(x))]
+        if invalid_ids:
+            logger.warning(
+                "忽略非法 knowledge_base_id 列表项（将仅使用合法项/或走默认自动发现）: %s",
+                invalid_ids,
+            )
+        kb_ids = valid_ids
+        single_id = kb_ids[0] if len(kb_ids) == 1 else None
+        if not kb_ids:
+            knowledge_base_id = None
+
+    # 多个知识库：创建 MultiKBHybridRetriever
+    if len(kb_ids) > 1:
+        logger.info("检测到多个知识库，创建 MultiKBHybridRetriever: kb_count=%d", len(kb_ids))
+
+        retrievers: list[HybridRetriever] = []
+        failed_kbs: list[str] = []
+
+        for kb_id in kb_ids:
+            try:
+                logger.debug("为知识库 %s 创建 HybridRetriever", kb_id)
+                retriever = get_hybrid_retriever(kb_id)
+                retrievers.append(retriever)
+            except Exception as e:
+                logger.warning("知识库 %s 的 HybridRetriever 创建失败: %s", kb_id, e)
+                failed_kbs.append(kb_id)
+
+        if not retrievers:
+            error_msg = f"所有知识库 HybridRetriever 创建失败: {failed_kbs}"
+            logger.error(error_msg)
+            # 回退到默认配置
+            logger.warning("回退到默认配置")
+            return get_hybrid_retriever(None)
+
+        if failed_kbs:
+            logger.warning("部分知识库创建失败: %s", failed_kbs)
+
+        return MultiKBHybridRetriever(retrievers=retrievers)
+
+    # 默认兜底：如果未提供 knowledge_base_id，且没有显式 kb_ids，则尝试自动发现 Chroma 中已有 kb_*_vector 集合
+    # 背景：常见离线/批处理流程会生成多个 kb_kb_xxx_*（每个 KB 对应一个 PDF），但 outline_sources 未维护。
+    # 此时单库检索会“永远只有一个来源文件”。这里用 MultiKB 兜底恢复多来源召回。
+    if knowledge_base_id is None and not kb_ids:
+        try:
+            cm = get_chroma_connection_manager()
+            collections = cm.list_collections()
+            names: list[str] = []
+            for c in collections:
+                n = getattr(c, "name", None)
+                if isinstance(n, str) and n:
+                    names.append(n)
+                else:
+                    s = str(c)
+                    if s:
+                        names.append(s)
+
+            discovered: list[str] = []
+            for name in names:
+                if name == "whitepaper_documents":
+                    continue
+                if isinstance(name, str) and name.startswith("kb_") and name.endswith("_vector"):
+                    kb_id = name[len("kb_") : -len("_vector")]
+                    if kb_id:
+                        discovered.append(kb_id)
+
+            seen: set[str] = set()
+            discovered = [x for x in discovered if not (x in seen or seen.add(x))]
+            if discovered:
+                logger.info("默认检索：自动发现可用知识库: kb_count=%d", len(discovered))
+                if len(discovered) == 1:
+                    return get_hybrid_retriever(discovered[0])
+                return get_hybrid_retriever(discovered)
+        except Exception:
+            pass
+
+    # 单个知识库或默认配置
+    if knowledge_base_id:
+        # 使用指定的 knowledge_base_id 创建索引构建器
+        # 注意：knowledge_base_id 已经是 kb_doc_xxx 格式
+        # 使用与 knowledge_base_helper.py 中完全一致的命名规则
+        vector_collection_name = f"kb_{single_id}_vector"
+        bm25_index_path = _find_bm25_index_for_kb(single_id)
+        metadata_table_name = f"kb_{single_id}_metadata"
+
+        logger.info(
+            "使用知识库ID创建索引构建器: kb_id=%s, vector_collection=%s, bm25_path=%s, metadata_table=%s",
+            single_id,
+            vector_collection_name,
+            bm25_index_path,
+            metadata_table_name
+        )
+
+        # 确保BM25索引目录存在
+        bm25_dir = Path(bm25_index_path).parent
+        bm25_dir.mkdir(parents=True, exist_ok=True)
+
+        # 检查BM25索引文件是否存在
+        bm25_json_path = bm25_index_path.replace('.pkl', '.json')
+        bm25_pkl_exists = Path(bm25_index_path).exists()
+        bm25_json_exists = Path(bm25_json_path).exists()
+        logger.debug(
+            "BM25索引文件检查: pkl_path=%s (存在=%s), json_path=%s (存在=%s)",
+            bm25_index_path,
+            bm25_pkl_exists,
+            bm25_json_path,
+            bm25_json_exists
+        )
+
+        try:
+            vector_builder = VectorIndexBuilder(
+                collection_name=vector_collection_name,
+                connection_manager=get_chroma_connection_manager(),
+            )
+            bm25_builder = BM25IndexBuilder(index_path=bm25_index_path)
+            # 初始化后检查BM25索引状态
+            try:
+                bm25_stats = bm25_builder.get_stats()
+                logger.info(
+                    "BM25索引构建器初始化完成: is_built=%s, documents_count=%d, index_path=%s",
+                    bm25_stats.get("is_built", False),
+                    bm25_stats.get("documents_count", 0),
+                    bm25_stats.get("index_path", "unknown")
+                )
+            except Exception as e:
+                logger.warning("获取BM25索引状态失败: %s", e)
+            metadata_builder = MetadataIndexBuilder(
+                table_name=metadata_table_name,
+                connection_manager=get_sqlite_connection_manager(),
+            )
+        except Exception as e:
+            error_msg = (
+                f"无法创建索引构建器（knowledge_base_id={single_id}）: {e}. "
+                "请检查知识库是否已正确创建，以及索引配置是否正确。"
+            )
+            logger.error(error_msg, exc_info=True)
+            raise HybridRetrieverError(error_msg) from e
+    else:
+        # 向后兼容：使用默认配置
+        logger.info(
+            "未提供 knowledge_base_id，使用默认配置创建索引构建器（whitepaper_documents collection）。"
+        )
+        try:
+            vector_builder = VectorIndexBuilder()
+            # 默认配置：优先选择已存在的旧版本 BM25 索引（kb_kb_*.json），避免退回 default.pkl 导致"未构建"。
+            default_bm25_path = _find_latest_legacy_bm25_index_path() or "./data/bm25_index/default.pkl"
+            Path(default_bm25_path).parent.mkdir(parents=True, exist_ok=True)
+            bm25_builder = BM25IndexBuilder(index_path=default_bm25_path)
+            # 检查默认BM25索引状态
+            try:
+                bm25_stats = bm25_builder.get_stats()
+                logger.info(
+                    "默认BM25索引状态: is_built=%s, documents_count=%d, index_path=%s",
+                    bm25_stats.get("is_built", False),
+                    bm25_stats.get("documents_count", 0),
+                    bm25_stats.get("index_path", "unknown")
+                )
+            except Exception as e:
+                logger.debug("获取默认BM25索引状态失败: %s", e)
+            metadata_builder = MetadataIndexBuilder()
+        except Exception as e:
+            error_msg = (
+                f"无法创建默认索引构建器: {e}. "
+                "请检查系统配置和依赖是否正确安装。"
+            )
+            logger.error(error_msg, exc_info=True)
+            raise HybridRetrieverError(error_msg) from e
+
+    try:
+        retriever = HybridRetriever(
+            vector_index_builder=vector_builder,
+            bm25_index_builder=bm25_builder,
+            metadata_index_builder=metadata_builder,
+            llm_service=get_llm_service(),
+        )
+        logger.info("HybridRetriever 初始化成功: kb_id=%s", single_id or "默认")
+        return retriever
+    except HybridRetrieverError:
+        # HybridRetriever自己抛出的异常，直接向上抛出
+        raise
+    except Exception as e:
+        error_msg = (
+            f"HybridRetriever 初始化失败（knowledge_base_id={single_id or '默认'}）: {e}. "
+            "请检查索引构建器配置和依赖是否正确。"
+        )
+        logger.error(error_msg, exc_info=True)
+        raise HybridRetrieverError(error_msg) from e
 
 
 def get_draft_service():
@@ -263,8 +573,30 @@ async def generate_draft_endpoint(
                 if database:
                     database_names.append(database.name)
 
-        # 5. 创建草稿生成Agent
-        hybrid_retriever = get_hybrid_retriever()
+        # 5. 获取知识库ID（从原始大纲ID）
+        knowledge_base_id: str | list[str] | None = None
+        try:
+            # 从优化大纲中获取原始大纲ID
+            original_outline_id = str(optimized_outline.original_outline_id)
+            # 尝试从原始大纲ID获取知识库ID（支持多 uploaded_file）
+            from src.interfaces.api.routes.frontend_adapter.chat_routes import (
+                _get_knowledge_base_ids_from_outline_id,
+            )
+            kb_ids = _get_knowledge_base_ids_from_outline_id(original_outline_id)
+            if kb_ids:
+                knowledge_base_id = kb_ids if len(kb_ids) > 1 else kb_ids[0]
+                logger.info(
+                    "从原始大纲ID=%s获取到knowledge_base_id=%s",
+                    original_outline_id,
+                    knowledge_base_id,
+                )
+            else:
+                logger.info("未找到原始大纲ID=%s关联的知识库，将使用默认知识库配置", original_outline_id)
+        except Exception as e:
+            logger.warning("获取知识库ID失败，将使用默认配置: %s", e)
+
+        # 6. 创建草稿生成Agent
+        hybrid_retriever = get_hybrid_retriever(knowledge_base_id=knowledge_base_id)
         agent = create_draft_generator_agent(
             llm_service=llm_service,
             report_type=request.report_type,
@@ -273,7 +605,7 @@ async def generate_draft_endpoint(
             hybrid_retriever=hybrid_retriever,
         )
 
-        # 6. 生成草稿
+        # 7. 生成草稿
         draft = agent.generate_draft(
             optimized_outline=optimized_outline,
             industry_name=industry_name,
@@ -281,13 +613,13 @@ async def generate_draft_endpoint(
             report_type=request.report_type,
         )
 
-        # 7. 保存草稿到数据库
+        # 8. 保存草稿到数据库
         # 使用固定的测试用户ID(后续版本将从认证中获取)
         test_user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
         draft_service = get_draft_service()
         draft_service.save_draft(draft, test_user_id)
 
-        # 8. 转换为响应格式
+        # 9. 转换为响应格式
         draft_response = _convert_draft_to_response(draft)
 
         logger.info("草稿生成成功: %s (ID: %s)", draft.title, draft.id)
@@ -655,5 +987,153 @@ async def assess_draft_quality_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"评估草稿质量失败: {e}",
+        )
+
+
+@router.post(
+    "/export-html",
+    response_model=DraftHTMLExportResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "草稿不存在"},
+        500: {"model": ErrorResponse, "description": "服务器内部错误"},
+    },
+    summary="导出草稿为HTML",
+    description="将草稿导出为HTML文件（包含图表渲染和附录数据）",
+)
+async def export_draft_html_endpoint(
+    request: DraftHTMLExportRequest,
+) -> DraftHTMLExportResponse:
+    """
+    导出草稿为HTML接口
+
+    Args:
+        request: HTML导出请求
+
+    Returns:
+        DraftHTMLExportResponse: 导出结果
+
+    Raises:
+        HTTPException: 草稿不存在时抛出
+    """
+    try:
+        from src.application.services.html_export_service import HTMLExportService
+
+        # 创建HTML导出服务
+        export_service = HTMLExportService()
+
+        # 导出草稿为HTML
+        file_path = export_service.export_draft_to_html(
+            draft_id=str(request.draft_id) if request.draft_id else None,
+            outline_id=str(request.outline_id) if request.outline_id else None,
+            output_dir=request.output_dir,
+            filename=request.filename,
+            datajson_dir=request.datajson_dir,
+            include_appendix=request.include_appendix,
+        )
+
+        # 获取草稿信息
+        draft_service = export_service.draft_service
+        draft_id_str = None
+        outline_id_str = None
+        if request.draft_id:
+            draft = draft_service.get_draft(request.draft_id)
+            draft_id_str = str(draft.id)
+            outline_id_str = str(draft.outline_id)
+        elif request.outline_id:
+            drafts = draft_service.list_drafts(outline_id=request.outline_id)
+            if drafts:
+                draft = drafts[0]
+                draft_id_str = str(draft.id)
+                outline_id_str = str(draft.outline_id)
+
+        logger.info("草稿HTML导出成功: file_path=%s", file_path)
+
+        return DraftHTMLExportResponse(
+            success=True,
+            message="HTML导出成功",
+            draft_id=draft_id_str,
+            outline_id=outline_id_str,
+            file_path=str(file_path),
+            file_url=None,  # 后续版本可以支持文件URL
+        )
+
+    except ResourceNotFoundError as e:
+        logger.warning("草稿不存在: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"草稿不存在: {e}",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("导出草稿为HTML异常: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"导出草稿为HTML失败: {e}",
+        )
+
+
+@router.get(
+    "/{draft_id}/html",
+    response_class=Response,
+    responses={
+        404: {"model": ErrorResponse, "description": "草稿不存在"},
+        500: {"model": ErrorResponse, "description": "服务器内部错误"},
+    },
+    summary="获取草稿HTML内容",
+    description="获取草稿的HTML内容（不写入文件，直接返回HTML字符串）",
+)
+async def get_draft_html_content_endpoint(
+    draft_id: str,
+    outline_id: str | None = Query(None, description="大纲ID（如果draft_id不存在时使用）"),
+    datajson_dir: str | None = Query(None, description="datajson目录路径（可选）"),
+    include_appendix: bool = Query(True, description="是否包含附录数据表格"),
+) -> Response:
+    """
+    获取草稿HTML内容接口
+
+    Args:
+        draft_id: 草稿ID
+        outline_id: 大纲ID（可选，如果draft_id不存在时使用）
+        datajson_dir: datajson目录路径（可选）
+        include_appendix: 是否包含附录数据表格
+
+    Returns:
+        Response: HTML内容响应
+
+    Raises:
+        HTTPException: 草稿不存在时抛出
+    """
+    try:
+        from src.application.services.html_export_service import HTMLExportService
+
+        # 创建HTML导出服务
+        export_service = HTMLExportService()
+
+        # 生成HTML内容
+        html_content = export_service.generate_html_content(
+            draft_id=draft_id if draft_id else None,
+            outline_id=outline_id,
+            datajson_dir=datajson_dir,
+            include_appendix=include_appendix,
+        )
+
+        logger.info("获取草稿HTML内容成功: draft_id=%s", draft_id)
+
+        return Response(content=html_content, media_type="text/html; charset=utf-8")
+
+    except ResourceNotFoundError as e:
+        logger.warning("草稿不存在: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"草稿不存在: {e}",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("获取草稿HTML内容异常: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取草稿HTML内容失败: {e}",
         )
 

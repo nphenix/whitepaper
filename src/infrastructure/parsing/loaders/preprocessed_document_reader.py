@@ -183,11 +183,36 @@ class PreprocessedDocumentReader(BaseLoader):
         Returns:
             Dict[str, Any]: 元数据字典
         """
+        def _clean_doc_dir_name(name: str) -> str:
+            """清理 cleaned/documents 下的目录名噪音：去掉末尾 _86/_e6 等。"""
+            import re
+
+            s = (name or "").strip()
+            if not s:
+                return ""
+            s = re.sub(r"_[0-9]{1,3}$", "", s)
+            s = re.sub(r"_[0-9a-fA-F]{2}$", "", s)
+            return s.strip(" _-")
+
+        # 尝试从路径推断“文档显示名”（用于引用/统计）
+        # source_path 通常为 .../<doc_dir>/<uuid>_<pdf>.pdf_extracted/
+        doc_dir_name = ""
+        try:
+            doc_dir_name = self.source_path.parent.name
+        except Exception:
+            doc_dir_name = ""
+        inferred_name = _clean_doc_dir_name(doc_dir_name) or doc_dir_name
+
         metadata: dict[str, Any] = {
             "source": str(self.source_path),
             "format": self.format,
             "loaded_at": datetime.now().isoformat(),
             "preprocessed": True,
+            # 兼容下游：document_name 用于“文档级展示名/去重/统计”
+            # - 先用路径推断的 doc_dir（去噪）
+            # - 后续若能从 clean_content_list.json 提取更准确标题，会覆盖/补充
+            "document_name": inferred_name or "unknown",
+            "source_title": inferred_name or "unknown",
         }
 
         # 读取clean_content_list.json
@@ -224,6 +249,24 @@ class PreprocessedDocumentReader(BaseLoader):
                 # content_list是复杂类型(列表),需要转换为JSON字符串以符合LlamaIndex要求
                 # 但为了保持向后兼容,我们保留原始列表,在vector_index中会转换为JSON字符串
                 metadata["content_list"] = content_list
+
+                # 提取 text_level=1 的文本作为文档标题（用于参考文献显示）
+                title_from_content = None
+                for item in content_list:
+                    if isinstance(item, dict) and item.get("text_level") == 1:
+                        title_text = item.get("text", "").strip()
+                        if title_text:
+                            title_from_content = title_text
+                            break
+                if title_from_content:
+                    metadata["document_title_from_content"] = title_from_content
+                    logger.debug(f"从text_level=1提取文档标题: {title_from_content}")
+                    # 用更可靠的标题覆盖展示名
+                    metadata["document_name"] = title_from_content
+                    metadata["source_title"] = title_from_content
+                else:
+                    logger.debug("未找到text_level=1的文本作为文档标题")
+
                 logger.debug(f"成功读取clean_content_list.json: {len(content_list)} 项")
 
             except Exception as e:

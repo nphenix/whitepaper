@@ -127,9 +127,76 @@ class BM25IndexBuilder:
             self.epsilon,
         )
 
-        # 尝试加载现有索引
-        if self.index_path and os.path.exists(self.index_path):
-            self.load_index()
+        # 尝试加载现有索引（检查.pkl和.json格式）
+        if self.index_path:
+            json_path = self.index_path.replace('.pkl', '.json')
+            pkl_exists = os.path.exists(self.index_path)
+            json_exists = os.path.exists(json_path)
+
+            logger.debug(
+                "检查BM25索引文件: pkl_path=%s (存在=%s), json_path=%s (存在=%s)",
+                self.index_path,
+                pkl_exists,
+                json_path,
+                json_exists
+            )
+
+            # 如果.json文件存在，优先加载JSON格式
+            if json_exists:
+                try:
+                    self.load_index()
+                    if self._bm25_index is None:
+                        logger.error(
+                            "BM25索引文件存在但加载后索引为空: path=%s, documents_count=%d, document_texts_count=%d",
+                            json_path,
+                            len(self._documents),
+                            len(self._document_texts)
+                        )
+                        raise BM25IndexError(
+                            f"BM25索引文件存在但加载失败: path={json_path}, "
+                            f"documents_count={len(self._documents)}, document_texts_count={len(self._document_texts)}"
+                        )
+                    else:
+                        logger.info(
+                            "BM25索引加载完成: path=%s, documents_count=%d, is_built=%s",
+                            json_path,
+                            len(self._documents),
+                            self._bm25_index is not None
+                        )
+                except BM25IndexError:
+                    raise
+                except Exception as e:
+                    logger.error(
+                        "BM25索引加载失败: path=%s, error=%s",
+                        json_path,
+                        e,
+                        exc_info=True
+                    )
+                    raise BM25IndexError(f"加载BM25索引失败: {e}") from e
+            # 如果只有.pkl文件存在，尝试加载
+            elif pkl_exists:
+                try:
+                    self.load_index()
+                    if self._bm25_index is None:
+                        raise BM25IndexError(
+                            f"BM25索引(pkl格式)加载后为空: {self.index_path}"
+                        )
+                except BM25IndexError:
+                    raise
+                except Exception as e:
+                    logger.error(
+                        "BM25索引(pkl)加载失败: path=%s, error=%s",
+                        self.index_path,
+                        e,
+                        exc_info=True
+                    )
+                    raise BM25IndexError(f"加载BM25索引失败: {e}") from e
+            else:
+                logger.debug(
+                    "BM25索引文件不存在，将需要构建新索引: pkl=%s, json=%s",
+                    self.index_path,
+                    json_path
+                )
 
     def _tokenize(self, text: str) -> list[str]:
         """
@@ -231,15 +298,20 @@ class BM25IndexBuilder:
         """
         if not nodes:
             error_msg = "必须提供nodes"
+            logger.error(f"BM25索引构建失败: {error_msg}")
             raise ValueError(error_msg)
 
-        try:
-            logger.info("开始构建BM25索引: nodes_count=%s", len(nodes))
+        index_path = self.index_path or "None"
+        logger.info(f"开始构建BM25索引: nodes_count={len(nodes)}, index_path={index_path}")
 
+        try:
             # 重置索引数据
             self._documents = []
             self._document_texts = []
             self._metadata = []
+
+            skipped_nodes = 0
+            processed_nodes = 0
 
             # 处理每个节点
             for i, node in enumerate(nodes):
@@ -247,21 +319,40 @@ class BM25IndexBuilder:
                 text = getattr(node, "text", "")
                 if not text or not str(text).strip():
                     logger.debug("跳过空文本节点: node_index=%s", i)
+                    skipped_nodes += 1
                     continue
 
                 # 获取元数据
                 metadata = dict(getattr(node, "metadata", {}) or {})
+                node_id = getattr(node, "id_", f"node_{i}")
 
                 # 添加到索引数据
                 self._documents.append(node)
                 self._document_texts.append(str(text))
                 self._metadata.append(metadata)
+                processed_nodes += 1
 
                 if show_progress and (i + 1) % 100 == 0:
                     logger.info("已处理 %s/%s 个节点", i + 1, len(nodes))
 
+            logger.debug(
+                f"BM25索引节点处理完成: total={len(nodes)}, processed={processed_nodes}, skipped={skipped_nodes}"
+            )
+
+            if processed_nodes == 0:
+                error_msg = "没有有效的文档可以构建BM25索引（所有节点文本为空）"
+                logger.error(f"BM25索引构建失败: {error_msg}")
+                raise BM25IndexError(error_msg)
+
             # 构建BM25索引
+            logger.debug(f"开始分词文档: documents_count={len(self._document_texts)}")
             tokenized_docs = [self._tokenize(doc) for doc in self._document_texts]
+
+            logger.debug(
+                f"分词完成: documents_count={len(tokenized_docs)}, "
+                f"avg_tokens_per_doc={sum(len(d) for d in tokenized_docs) / len(tokenized_docs) if tokenized_docs else 0:.2f}"
+            )
+
             self._bm25_index = BM25Okapi(
                 corpus=tokenized_docs,
                 k1=self.k1,
@@ -269,20 +360,29 @@ class BM25IndexBuilder:
                 epsilon=self.epsilon,
             )
 
+            logger.debug("BM25Okapi索引对象创建完成")
+
             # 计算统计信息
             self._calculate_stats()
 
             # 持久化索引
             if self.index_path:
+                logger.debug(f"开始保存BM25索引: index_path={self.index_path}")
                 self.save_index()
+                logger.info(f"BM25索引已保存: index_path={self.index_path}")
+            else:
+                logger.warning("BM25索引路径未设置，不会持久化")
 
             logger.info(
-                "BM25索引构建完成: nodes_count=%s, vocab_size=%s, avg_doc_length=%s",
-                len(self._documents),
+                "BM25索引构建完成: processed_nodes=%s, vocab_size=%s, avg_doc_length=%s, index_path=%s",
+                processed_nodes,
                 self._vocab_size,
                 self._avg_doc_length,
+                self.index_path or "None",
             )
 
+        except BM25IndexError:
+            raise
         except Exception as exc:
             error_msg = f"构建BM25索引失败: {exc}"
             logger.error(error_msg, exc_info=True)
@@ -311,6 +411,22 @@ class BM25IndexBuilder:
         if not query_str:
             error_msg = "必须提供query_str"
             raise ValueError(error_msg)
+
+        # Lazy-load: builder 可能早于索引文件生成/更新而初始化，导致 _bm25_index 为空。
+        # 如果磁盘上已有索引文件，尽量在 query 时自动加载一次，避免上层流程因“未构建”而报错。
+        if self._bm25_index is None and self.index_path:
+            try:
+                json_path = self.index_path.replace(".pkl", ".json")
+                if os.path.exists(self.index_path) or os.path.exists(json_path):
+                    logger.info(
+                        "BM25索引未初始化，尝试在查询时加载索引: index_path=%s, json_path=%s",
+                        self.index_path,
+                        json_path,
+                    )
+                    self.load_index()
+            except Exception as exc:
+                # load_index 已会记录更详细日志；这里统一包装为 BM25IndexError
+                raise BM25IndexError(f"查询前加载BM25索引失败: {exc}") from exc
 
         if self._bm25_index is None:
             error_msg = "索引未构建,请先调用build_index方法"
@@ -526,7 +642,10 @@ class BM25IndexBuilder:
 
     def save_index(self) -> None:
         """
-        保存索引到文件
+        保存索引到文件（使用JSON格式）
+
+        使用JSON格式保存索引数据，避免pickle的安全风险。
+        将TextNode对象转换为可JSON序列化的字典格式。
 
         Raises:
             BM25IndexError: 如果保存失败
@@ -540,9 +659,33 @@ class BM25IndexBuilder:
             if index_dir:
                 index_dir.mkdir(parents=True, exist_ok=True)
 
-            # 准备保存数据
+            # 将节点转换为可JSON序列化的格式
+            serialized_documents = []
+            for node in self._documents:
+                # 提取基本属性
+                node_data = {
+                    "text": getattr(node, "text", ""),
+                    "metadata": dict(getattr(node, "metadata", {}) or {}),
+                    "node_id": getattr(node, "node_id", None),
+                }
+                
+                # 处理embedding向量（如果有）
+                embedding = getattr(node, "embedding", None)
+                if embedding is not None:
+                    # 尝试转换为列表（支持numpy数组和list）
+                    try:
+                        node_data["embedding"] = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+                    except (TypeError, ValueError):
+                        # 如果无法转换，保存为None
+                        node_data["embedding"] = None
+                else:
+                    node_data["embedding"] = None
+                
+                serialized_documents.append(node_data)
+
+            # 准备保存数据（JSON格式）
             save_data = {
-                "documents": self._documents,
+                "documents": serialized_documents,
                 "document_texts": self._document_texts,
                 "metadata": self._metadata,
                 "vocab_size": self._vocab_size,
@@ -550,13 +693,17 @@ class BM25IndexBuilder:
                 "k1": self.k1,
                 "b": self.b,
                 "epsilon": self.epsilon,
+                "format_version": "2.0",  # 标识新的JSON格式版本
             }
 
-            # 保存到文件
-            with open(self.index_path, "wb") as f:
-                pickle.dump(save_data, f)
+            # 保存到JSON文件
+            json_path = self.index_path.replace('.pkl', '.json')
+            with open(json_path, "w", encoding="utf-8") as f:
+                import json
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
 
-            logger.info("BM25索引保存成功: path=%s", self.index_path)
+            logger.info("BM25索引保存成功: path=%s, documents_count=%s", 
+                       json_path, len(serialized_documents))
 
         except Exception as exc:
             error_msg = f"保存BM25索引失败: {exc}"
@@ -565,55 +712,72 @@ class BM25IndexBuilder:
 
     def load_index(self) -> None:
         """
-        从文件加载索引
+        从JSON文件加载索引
+
+        兼容旧格式（pickle）和新格式（JSON）。
+        加载时重建TextNode对象。
 
         Raises:
             BM25IndexError: 如果加载失败
         """
-        if not self.index_path or not os.path.exists(self.index_path):
+        if not self.index_path:
+            logger.debug("BM25索引路径未设置,跳过加载")
+            return
+
+        # 计算JSON格式的路径（优先使用新格式）
+        json_path = self.index_path.replace('.pkl', '.json')
+
+        # 确定要加载的文件路径
+        json_path_to_load: str | None = None
+        is_json_format = False
+
+        if os.path.exists(json_path):
+            # JSON格式存在
+            json_path_to_load = json_path
+            is_json_format = True
+            logger.debug("找到BM25索引文件(JSON格式): %s", json_path)
+        elif os.path.exists(self.index_path):
+            # 旧pickle格式
+            json_path_to_load = self.index_path
+            is_json_format = False
+            logger.debug("找到BM25索引文件(旧pickle格式): %s", self.index_path)
+        else:
+            # 索引文件不存在，这是正常情况（索引尚未构建）
+            logger.debug("BM25索引文件不存在,跳过加载: pkl=%s, json=%s",
+                        self.index_path, json_path)
+            return
+
+        # 检查文件是否为空
+        file_size = Path(json_path_to_load).stat().st_size
+        if file_size == 0:
+            logger.warning("BM25索引文件为空,跳过加载: path=%s", json_path_to_load)
             return
 
         try:
-            # 检查文件是否为空
-            if Path(self.index_path).stat().st_size == 0:
-                logger.warning("BM25索引文件为空,跳过加载: path=%s", self.index_path)
-                return
+            import json
+            from llama_index.core.schema import TextNode
 
-            # 从文件加载数据
-            with open(self.index_path, "rb") as f:
-                try:
-                    # 使用更安全的反序列化方式
-                    import json
-                    # 尝试JSON格式
-                    try:
-                        save_data = json.load(f)
-                    except json.JSONDecodeError:
-                        # 回退到pickle,但添加更多安全检查
-                        f.seek(0)
-                        # 使用更安全的pickle加载方式,限制可执行的对象类型
-                        import pickle
+            save_data: dict[str, Any]
 
-                        class SafeUnpickler(pickle.Unpickler):
-                            def find_class(self, module: str, name: str) -> Any:
-                                # 只允许特定的安全模块和类
-                                if module in ["builtins", "collections", "typing"]:
-                                    return super().find_class(module, name)
-                                error_msg = f"Unsafe to load: {module}.{name}"
-                                raise pickle.UnpicklingError(error_msg)
-
-                        safe_unpickler = SafeUnpickler(f)
-                        save_data = safe_unpickler.load()
-                except (EOFError, pickle.UnpicklingError, json.JSONDecodeError) as e:
-                    # 文件损坏或为空,记录警告并跳过加载
+            if is_json_format:
+                # 加载JSON格式
+                with open(json_path_to_load, "r", encoding="utf-8") as f:
+                    save_data = json.load(f)
+            else:
+                # 尝试加载旧pickle格式
+                raw = Path(json_path_to_load).read_bytes()
+                if raw[:1] == b"\x80":
+                    # 旧pickle格式（不再支持，直接跳过）
                     logger.warning(
-                        "BM25索引文件损坏或格式不正确,跳过加载: path=%s, error=%s",
-                        self.index_path,
-                        str(e),
+                        "BM25索引文件为旧版pickle格式,跳过加载: path=%s",
+                        json_path_to_load
                     )
                     return
+                else:
+                    # 尝试作为JSON加载（兼容）
+                    save_data = json.loads(raw.decode("utf-8"))
 
-            # 恢复数据
-            self._documents = save_data.get("documents", [])
+            # 恢复基本数据
             self._document_texts = save_data.get("document_texts", [])
             self._metadata = save_data.get("metadata", [])
             self._vocab_size = save_data.get("vocab_size", 0)
@@ -622,19 +786,85 @@ class BM25IndexBuilder:
             self.b = save_data.get("b", self.b)
             self.epsilon = save_data.get("epsilon", self.epsilon)
 
+            # 重建TextNode对象
+            self._documents = []
+            serialized_docs = save_data.get("documents", [])
+
+            for doc_data in serialized_docs:
+                try:
+                    # 创建TextNode
+                    node = TextNode(
+                        text=doc_data.get("text", ""),
+                        metadata=doc_data.get("metadata", {}),
+                    )
+
+                    # 设置node_id
+                    node_id = doc_data.get("node_id")
+                    if node_id:
+                        # TextNode的node_id是只读的，需要通过内部属性设置
+                        object.__setattr__(node, 'node_id', node_id)
+
+                    # 恢复embedding（如果有）
+                    embedding = doc_data.get("embedding")
+                    if embedding is not None:
+                        try:
+                            import numpy as np
+                            embedding_array = np.array(embedding)
+                            object.__setattr__(node, 'embedding', embedding_array)
+                        except (TypeError, ValueError):
+                            # 如果无法转换为numpy数组，忽略embedding
+                            pass
+
+                    self._documents.append(node)
+                except Exception as e:
+                    logger.warning(
+                        "重建文档节点失败,跳过: doc_index=%s, error=%s",
+                        len(self._documents),
+                        str(e),
+                    )
+                    continue
+
             # 重建BM25索引
             if self._document_texts:
-                tokenized_docs = [self._tokenize(doc) for doc in self._document_texts]
-                self._bm25_index = BM25Okapi(
-                    corpus=tokenized_docs,
-                    k1=self.k1,
-                    b=self.b,
-                    epsilon=self.epsilon,
-                )
+                try:
+                    tokenized_docs = [self._tokenize(doc) for doc in self._document_texts]
+                    self._bm25_index = BM25Okapi(
+                        corpus=tokenized_docs,
+                        k1=self.k1,
+                        b=self.b,
+                        epsilon=self.epsilon,
+                    )
+                    logger.info(
+                        "BM25索引加载成功: path=%s, documents_count=%s, format=%s, vocab_size=%s",
+                        json_path_to_load,
+                        len(self._documents),
+                        "JSON" if is_json_format else "legacy",
+                        len(tokenized_docs[0]) if tokenized_docs else 0
+                    )
+                except Exception as build_exc:
+                    logger.error(
+                        "重建BM25索引对象失败: path=%s, documents_count=%d, document_texts_count=%d, error=%s",
+                        json_path_to_load,
+                        len(self._documents),
+                        len(self._document_texts),
+                        build_exc,
+                        exc_info=True
+                    )
+                    # 即使重建失败，也保留已加载的数据，但_bm25_index为None
+                    self._bm25_index = None
+                    raise BM25IndexError(f"重建BM25索引对象失败: {build_exc}") from build_exc
             else:
+                logger.warning(
+                    "BM25索引加载后document_texts为空: path=%s, documents_count=%d",
+                    json_path_to_load,
+                    len(self._documents)
+                )
                 self._bm25_index = None
-
-            logger.info("BM25索引加载成功: path=%s, documents_count=%s", self.index_path, len(self._documents))
+                # 如果document_texts为空，说明加载有问题，抛出异常
+                raise BM25IndexError(
+                    f"BM25索引加载后document_texts为空: path={json_path_to_load}, "
+                    f"documents_count={len(self._documents)}"
+                )
 
         except Exception as exc:
             error_msg = f"加载BM25索引失败: {exc}"

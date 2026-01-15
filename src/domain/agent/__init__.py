@@ -25,6 +25,28 @@ from .outline import (
     create_outline_from_structure,
     create_outline_from_text,
 )
+from .chart_config import (
+    ChartConfig,
+    ChartType,
+    create_chart_config_from_data_source,
+    create_chart_config_from_dsl_config,
+)
+from .draft import (
+    Draft,
+    DraftSection,
+    DraftSectionType,
+    DraftStatus,
+    DraftVersion,
+    create_draft_from_outline,
+)
+from .html_draft import (
+    HTMLAppendixDataTable,
+    HTMLCitation,
+    HTMLChartPlaceholder,
+    HTMLDraft,
+    HTMLSection,
+    create_html_draft_from_draft,
+)
 from .source_reference import (
     LocalDocumentReference,
     SourceReference,
@@ -33,6 +55,18 @@ from .source_reference import (
 )
 
 __all__ = [
+    "ChartConfig",
+    "ChartType",
+    "Draft",
+    "DraftSection",
+    "DraftSectionType",
+    "DraftStatus",
+    "DraftVersion",
+    "HTMLAppendixDataTable",
+    "HTMLCitation",
+    "HTMLChartPlaceholder",
+    "HTMLDraft",
+    "HTMLSection",
     "Industry",
     "IndustryCategory",
     "LocalDocumentReference",
@@ -48,6 +82,10 @@ __all__ = [
     "SourceReference",
     "SourceReferenceType",
     "WebArticleReference",
+    "create_chart_config_from_data_source",
+    "create_chart_config_from_dsl_config",
+    "create_draft_from_outline",
+    "create_html_draft_from_draft",
     "create_optimized_outline_from_outline",
     "create_outline_from_structure",
     "create_outline_from_text",

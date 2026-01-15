@@ -9,7 +9,9 @@
 # 生成时间: 2025-12-23
 # 来源: specs/001-multi-agent-doc-system/tasks.md
 
+import json
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from structlog import get_logger
@@ -23,6 +25,8 @@ from src.domain.agent.outline import (
     create_outline_from_structure,
     create_outline_from_text,
 )
+from src.infrastructure.storage.sqlite.adapter import SQLiteAdapter
+from src.infrastructure.storage.sqlite.connection import get_connection_manager
 from src.shared.exceptions.base_exceptions import (
     ResourceNotFoundError,
     ValidationError,
@@ -56,8 +60,189 @@ class OutlineService(BaseService):
             connection_manager: SQLite连接管理器, 如果为None则使用默认连接
         """
         super().__init__(connection_manager)
-        # TODO: 添加大纲持久化适配器(当需要数据库存储时)
-        self._outlines: dict[str, Outline] = {}  # 临时内存存储
+        
+        # 初始化数据库适配器
+        self._cm = connection_manager or get_connection_manager()
+        self.outline_adapter = SQLiteAdapter(
+            table_name="outlines",
+            connection_manager=self._cm,
+            id_field="id",
+        )
+        
+        # 尝试初始化大纲项表（如果不存在则创建）
+        self._init_outline_items_table()
+        
+        self.outline_item_adapter = SQLiteAdapter(
+            table_name="outline_items",
+            connection_manager=self._cm,
+            id_field="id",
+        )
+
+    def _init_outline_items_table(self) -> None:
+        """初始化大纲项表"""
+        try:
+            with self._cm.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS outline_items (
+                        id TEXT PRIMARY KEY,
+                        outline_id TEXT NOT NULL,
+                        parent_id TEXT,
+                        item_type TEXT NOT NULL,
+                        level INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        order_index INTEGER DEFAULT 0,
+                        is_optimized INTEGER DEFAULT 0,
+                        original_title TEXT,
+                        original_description TEXT,
+                        optimization_suggestions TEXT DEFAULT '[]',
+                        metadata TEXT DEFAULT '{}',
+                        created_at TEXT,
+                        updated_at TEXT,
+                        FOREIGN KEY (outline_id) REFERENCES outlines(id),
+                        FOREIGN KEY (parent_id) REFERENCES outline_items(id)
+                    )
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_outline_items_outline_id ON outline_items (outline_id)")
+                conn.commit()
+                logger.debug("大纲项表初始化成功")
+        except Exception as e:
+            logger.warning("初始化大纲项表失败: %s, 将使用兼容模式", e)
+
+    def _ensure_outlines_table(self) -> None:
+        """确保outlines表存在"""
+        try:
+            with self._cm.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS outlines (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        industry_id TEXT,
+                        database_ids TEXT DEFAULT '[]',
+                        status TEXT DEFAULT 'DRAFT',
+                        current_version INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        metadata TEXT DEFAULT '{}',
+                        items_json TEXT DEFAULT '[]'
+                    )
+                """)
+                conn.commit()
+        except Exception as e:
+            logger.warning("确保outlines表存在失败: %s", e)
+
+    def _save_outline_to_db(self, outline: Outline) -> None:
+        """
+        保存大纲到数据库
+
+        Args:
+            outline: 大纲对象
+        """
+        self._ensure_outlines_table()
+        
+        now = datetime.now(UTC).isoformat()
+        outline_data = {
+            "id": str(outline.id),
+            "title": outline.title,
+            "description": outline.description or "",
+            "industry_id": str(outline.industry_id),
+            "database_ids": json.dumps([str(db_id) for db_id in outline.database_ids]),
+            "status": outline.status.value if hasattr(outline.status, "value") else str(outline.status),
+            "current_version": outline.current_version,
+            "created_at": outline.created_at.isoformat() if outline.created_at else now,
+            "updated_at": now,
+            "metadata": json.dumps(outline.metadata),
+            "items_json": json.dumps([item.model_dump() for item in outline.items]),
+        }
+        
+        # 检查是否已存在
+        existing = self.outline_adapter.get_by_id(str(outline.id))
+        if existing:
+            self.outline_adapter.update(str(outline.id), outline_data)
+        else:
+            self.outline_adapter.create(outline_data)
+        
+        logger.debug("保存大纲到数据库成功", outline_id=str(outline.id))
+
+    def _load_outline_from_db(self, outline_id: str) -> Outline | None:
+        """
+        从数据库加载大纲
+
+        Args:
+            outline_id: 大纲ID
+
+        Returns:
+            大纲对象，如果不存在则返回None
+        """
+        self._ensure_outlines_table()
+        
+        try:
+            outline_data = self.outline_adapter.get_by_id(outline_id)
+            if not outline_data:
+                return None
+            
+            # 解析items_json
+            items_json = outline_data.get("items_json", "[]")
+            if isinstance(items_str := items_json, str):
+                try:
+                    items_data = json.loads(items_str)
+                except json.JSONDecodeError:
+                    items_data = []
+            else:
+                items_data = items_json
+            
+            # 解析database_ids
+            database_ids_json = outline_data.get("database_ids", "[]")
+            if isinstance(db_ids_str := database_ids_json, str):
+                try:
+                    database_ids = [uuid.UUID(db_id) for db_id in json.loads(db_ids_str)]
+                except json.JSONDecodeError:
+                    database_ids = []
+            else:
+                database_ids = [uuid.UUID(db_id) for db_id in database_ids_json]
+            
+            # 解析metadata
+            metadata_json = outline_data.get("metadata", "{}")
+            if isinstance(metadata_str := metadata_json, str):
+                try:
+                    metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    metadata = {}
+            else:
+                metadata = metadata_json
+            
+            # 解析status
+            status_value = outline_data.get("status", "DRAFT")
+            try:
+                status = OutlineStatus(status_value)
+            except ValueError:
+                status = OutlineStatus.DRAFT
+            
+            # 创建Outline对象
+            outline = Outline(
+                id=uuid.UUID(outline_data["id"]),
+                title=outline_data["title"],
+                description=outline_data.get("description"),
+                industry_id=uuid.UUID(outline_data["industry_id"]),
+                database_ids=database_ids,
+                status=status,
+                current_version=outline_data.get("current_version", 1),
+                metadata=metadata,
+            )
+            
+            # 还原items
+            if items_data:
+                outline.items = [OutlineItem(**item) for item in items_data]
+            
+            logger.debug("从数据库加载大纲成功", outline_id=outline_id)
+            return outline
+            
+        except Exception as e:
+            logger.error("从数据库加载大纲失败: %s", e, exc_info=True)
+            return None
 
     def create_outline_from_text(
         self,
@@ -113,12 +298,14 @@ class OutlineService(BaseService):
                 description=description.strip() if description else None,
             )
 
-            # 保存到内存(TODO: 后续改为数据库存储)
-            outline_id = str(outline.id)
-            self._outlines[outline_id] = outline
+            # 保存到数据库
+            self._save_outline_to_db(outline)
 
             # 创建初始版本
             outline.create_version(OutlineStatus.DRAFT, "从文本创建大纲")
+
+            # 获取outline_id用于返回结果
+            outline_id = str(outline.id)
 
             result = {
                 "outline": outline.to_dict(),
@@ -203,9 +390,8 @@ class OutlineService(BaseService):
                 description=description.strip() if description else None,
             )
 
-            # 保存到内存(TODO: 后续改为数据库存储)
-            outline_id = str(outline.id)
-            self._outlines[outline_id] = outline
+            # 保存到数据库
+            self._save_outline_to_db(outline)
 
             # 创建初始版本
             outline.create_version(OutlineStatus.DRAFT, "从结构化数据创建大纲")
@@ -256,7 +442,7 @@ class OutlineService(BaseService):
             # 验证UUID格式
             validate_uuid(outline_id)
 
-            outline = self._outlines.get(outline_id)
+            outline = self._load_outline_from_db(outline_id)
             if not outline:
                 error_msg = f"大纲不存在: {outline_id}"
                 logger.warning(error_msg)
@@ -304,7 +490,7 @@ class OutlineService(BaseService):
             # 验证UUID格式
             validate_uuid(outline_id)
 
-            outline = self._outlines.get(outline_id)
+            outline = self._load_outline_from_db(outline_id)
             if not outline:
                 error_msg = f"大纲不存在: {outline_id}"
                 logger.warning(error_msg)
@@ -361,7 +547,7 @@ class OutlineService(BaseService):
             # 验证UUID格式
             validate_uuid(outline_id)
 
-            outline = self._outlines.get(outline_id)
+            outline = self._load_outline_from_db(outline_id)
             if not outline:
                 error_msg = f"大纲不存在: {outline_id}"
                 logger.warning(error_msg)
@@ -390,6 +576,9 @@ class OutlineService(BaseService):
                 for item_data in items:
                     item = OutlineItem(**item_data)
                     outline.add_item(item)
+
+            # 保存到数据库
+            self._save_outline_to_db(outline)
 
             logger.info(
                 "更新大纲成功",
@@ -535,7 +724,7 @@ class OutlineService(BaseService):
             validate_uuid(outline_id)
             validate_uuid(item_id)
 
-            outline = self._outlines.get(outline_id)
+            outline = self._load_outline_from_db(outline_id)
             if not outline:
                 error_msg = f"大纲不存在: {outline_id}"
                 logger.warning(error_msg)
@@ -565,6 +754,9 @@ class OutlineService(BaseService):
 
             if order is not None:
                 item.set_order(order)
+
+            # 保存到数据库
+            self._save_outline_to_db(outline)
 
             logger.info(
                 "更新大纲项成功",
@@ -675,29 +867,64 @@ class OutlineService(BaseService):
                     logger.error(error_msg)
                     raise ValidationError(error_msg)
 
+    def list_outlines(
+        self,
+        industry_id: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """
+        列出大纲
+
+        Args:
+            industry_id: 行业ID过滤(可选)
+            status: 状态过滤(可选)
+            limit: 返回数量限制
+            offset: 偏移量
+
+        Returns:
+            大纲列表和分页信息
+
+        Raises:
+            ValidationError: 验证失败时抛出
+        """
+        try:
+            # 验证行业ID格式
+            if industry_id:
+                validate_uuid(industry_id)
+
+            # 从数据库获取所有大纲
+            self._ensure_outlines_table()
+            
+            try:
+                all_outlines = self.outline_adapter.list()
+            except Exception:
+                all_outlines = []
+            
             # 过滤大纲
             filtered_outlines = []
-            for outline_id, outline in self._outlines.items():
+            for outline_data in all_outlines:
+                outline_id = outline_data.get("id")
+                
                 # 行业过滤
-                if industry_id and str(outline.industry_id) != industry_id:
+                if industry_id and outline_data.get("industry_id") != industry_id:
                     continue
 
                 # 状态过滤
-                if status and outline.status.value != status:
+                if status and outline_data.get("status") != status:
                     continue
 
                 filtered_outlines.append(
                     {
                         "outline_id": outline_id,
-                        "title": outline.title,
-                        "description": outline.description,
-                        "status": outline.status.value
-                        if hasattr(outline.status, "value")
-                        else str(outline.status),
-                        "total_items": len(outline.items),
-                        "current_version": outline.current_version,
-                        "created_at": outline.created_at.isoformat(),
-                        "updated_at": outline.updated_at.isoformat(),
+                        "title": outline_data.get("title"),
+                        "description": outline_data.get("description"),
+                        "status": outline_data.get("status"),
+                        "total_items": len(json.loads(outline_data.get("items_json", "[]"))),
+                        "current_version": outline_data.get("current_version", 1),
+                        "created_at": outline_data.get("created_at"),
+                        "updated_at": outline_data.get("updated_at"),
                     }
                 )
 
@@ -744,15 +971,17 @@ class OutlineService(BaseService):
             # 验证UUID格式
             validate_uuid(outline_id)
 
-            if outline_id not in self._outlines:
+            # 从数据库加载大纲
+            outline = self._load_outline_from_db(outline_id)
+            if not outline:
                 error_msg = f"大纲不存在: {outline_id}"
                 logger.warning(error_msg)
                 raise ResourceNotFoundError(
                     error_msg, resource_type="Outline", resource_id=outline_id
                 )
 
-            # 删除大纲
-            del self._outlines[outline_id]
+            # 从数据库删除
+            self.outline_adapter.delete(outline_id)
 
             logger.info("删除大纲成功", outline_id=outline_id)
 

@@ -4,8 +4,91 @@
 """
 
 import sys
+import logging
 from pathlib import Path
 from typing import Optional
+
+# 必须在任何其他模块导入之前配置日志
+# 这样所有模块的日志都会写入文件
+def _setup_early_logging():
+    """早期日志配置 - 检查命令行参数并配置日志"""
+    # 检查是否提供了 --log-file 参数
+    log_file = None
+    log_level = "INFO"
+
+    for i, arg in enumerate(sys.argv):
+        if arg in ["--log-file", "-f"] and i + 1 < len(sys.argv):
+            log_file = sys.argv[i + 1]
+        elif arg.startswith("--log-file="):
+            log_file = arg.split("=")[1]
+        if arg in ["--log-level", "-l"] and i + 1 < len(sys.argv):
+            log_level = sys.argv[i + 1]
+
+    if not log_file:
+        return
+
+    # 清除所有现有的日志处理器
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+
+    # 配置根日志器
+    root_logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # 抑制第三方库的DEBUG日志，避免显示敏感数据（如base64）
+    # 但保留INFO级别的重要信息（如HTTP请求结果）
+    for logger_name in [
+        "openai",
+        "httpx",
+        "httpcore",
+        "urllib3",
+    ]:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)  # 只显示INFO及以上，不显示DEBUG
+
+    # 创建文件处理器
+    from logging.handlers import RotatingFileHandler
+    log_path = Path(log_file).resolve()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    file_handler = RotatingFileHandler(
+        log_path,
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,
+        encoding='utf-8'
+    )
+
+    # 设置详细格式
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(funcName)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+    # 添加控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # 禁用 uvicorn 的默认日志配置
+    import uvicorn.config
+    uvicorn.config.LOGGING_CONFIG = {}
+
+    # 禁用 LoggerManager 的自动配置
+    try:
+        from src.shared.utils.logging import LoggerManager
+        LoggerManager._configured = True
+    except ImportError:
+        pass
+
+    print(f"[INFO] 已启用文件日志: {log_path}")
+
+
+# 在任何导入之前配置日志
+_setup_early_logging()
+
+# 清除 _setup_early_logging 以避免污染命名空间
+del _setup_early_logging
 
 import typer
 import uvicorn
@@ -25,7 +108,6 @@ sys.path.insert(0, str(project_root))
 
 # 导入应用
 
-# 获取配置和日志器
 config = get_config()
 logger = get_logger(__name__)
 console = Console()
@@ -36,6 +118,32 @@ cli = typer.Typer(
     help="WhitePaper API 服务器",
     no_args_is_help=True,
 )
+
+
+def _display_startup_info(
+    host: str,
+    port: int,
+    reload: bool,
+    workers: int,
+    log_level: str,
+    env: str = "development",
+):
+    """显示启动信息"""
+    table = Table(title="🚀 WhitePaper API 服务器", expand=True)
+
+    table.add_row("环境", f"[bold]{env}[/bold]")
+    table.add_row("地址", f"[bold]http://{host}:{port}[/bold]")
+    table.add_row("重载", "启用" if reload else "禁用")
+    table.add_row("工作进程", str(workers))
+    table.add_row("日志级别", log_level)
+
+    console.print(table)
+
+    console.rule("📚 API 文档")
+    console.print("   • Swagger UI: [link]http://localhost:8000/docs[/link]")
+    console.print("   • ReDoc: [link]http://localhost:8000/redoc[/link]")
+    console.print("   • OpenAPI: [link]http://localhost:8000/openapi.json[/link]")
+
 
 @cli.command()
 def stop(
@@ -88,130 +196,50 @@ def run(
         "--access-log/--no-access-log",
         help="是否启用访问日志",
     ),
+    log_file: str = typer.Option(
+        None,
+        "--log-file", "-f",
+        help="日志文件路径 (可选，启用后将同时输出到控制台和文件)",
+    ),
 ):
     """启动 API 服务器"""
 
     # 显示启动信息
     _display_startup_info(host, port, reload, workers, log_level)
 
-    # 配置 uvicorn
-    use_reload = reload
-    use_workers = workers if not reload else 1
-    use_access_log = access_log
-    use_colors = True
+    # 环境检查
+    if sys.platform == "win32" and workers > 1:
+        import ctypes
+        from ctypes import wintypes
 
-    if config.environment == "production":
-        use_reload = False
-        use_workers = max(workers, 2)
-        use_access_log = True
-        use_colors = False
-
-    # Windows 兼容性：
-    # - uvicorn 多 worker / reload 在 Windows 上经常触发 WinError 10022（socket.listen invalid argument）
-    # - e2e 测试与本地集成默认只需要单进程
-    if sys.platform.startswith("win"):
-        if use_reload:
-            logger.warning("Windows 环境下自动重载可能不稳定，已自动禁用 reload")
-            use_reload = False
-        if use_workers and use_workers > 1:
-            # 不再强制降级：在长任务场景(LLM/预处理/草稿生成)下，单 worker 会导致 /health、/draft 等接口长期无响应，
-            # 直接让 e2e 轮询“卡死”。保留风险提示，让用户自行选择 workers 数。
-            logger.warning(
-                "Windows 环境下多进程 workers=%s 可能在部分环境触发 WinError 10022；如遇启动失败请改为 --workers 1",
-                use_workers,
-            )
-
-    try:
-        # 启动服务器
-        logger.info("启动 WhitePaper API 服务器: http://%s:%s", host, port)
-        uvicorn.run(
-            app="src.interfaces.api.app:app",
-            host=host,
-            port=port,
-            reload=use_reload,
-            workers=use_workers,
-            log_level=log_level.lower(),
-            access_log=use_access_log,
-            use_colors=use_colors,
-            log_config=None,
+        logger.warning(
+            "Windows 环境下多进程 workers=%d 会触发 WinError 10022，已自动降级为单进程 (workers=1)",
+            workers,
         )
-    except KeyboardInterrupt:
-        logger.info("服务器已停止")
-    except Exception as e:
-        logger.error("服务器启动失败: %s", e)
-        raise typer.Exit(1) from e
+        console.print(
+            f"[bold yellow]Windows 环境下多进程模式可能不稳定,已降级为单进程[/bold yellow]"
+        )
+        workers = 1
 
+    console.print("[bold green]✅ 服务器配置完成,正在启动...[/bold green]")
 
-@cli.command()
-def info():
-    """显示应用信息"""
+    # 导入 FastAPI 应用
+    from src.interfaces.api.app import create_app
 
-    table = Table(title="WhitePaper API 信息")
-    table.add_column("配置项", style="cyan", no_wrap=True)
-    table.add_column("值", style="green")
+    app = create_app()
 
-    table.add_row("版本", "0.1.0")
-    table.add_row("环境", config.environment)
-    table.add_row("调试模式", str(config.debug))
-    table.add_row("主机", config.api.host)
-    table.add_row("端口", str(config.api.port))
-    table.add_row("工作进程数", str(config.api.workers))
-    table.add_row("日志级别", config.api.log_level)
-    table.add_row("数据目录", str(config.data_dir))
-    table.add_row("存储目录", str(config.storage_dir))
-
-    console.print(table)
-
-
-def _display_startup_info(
-    host: str,
-    port: int,
-    reload: bool,
-    workers: int,
-    log_level: str,
-) -> None:
-    """显示启动信息
-
-    Args:
-        host: 主机地址
-        port: 端口
-        reload: 是否启用重载
-        workers: 工作进程数
-        log_level: 日志级别
-    """
-    console.print("\n[bold blue]🚀 WhitePaper API 服务器[/bold blue]\n")
-
-    table = Table(show_header=False, box=None)
-    table.add_column("配置项", style="cyan")
-    table.add_column("值", style="green")
-
-    table.add_row("环境", config.environment)
-    table.add_row("地址", f"http://{host}:{port}")
-    table.add_row("重载", "启用" if reload else "禁用")
-    table.add_row("工作进程", str(workers))
-    table.add_row("日志级别", log_level)
-
-    console.print(table)
-
-    if config.environment == "development":
-        console.print("\n[yellow]📚 API 文档:[/yellow]")
-        console.print(f"   • Swagger UI: http://{host}:{port}/docs")
-        console.print(f"   • ReDoc: http://{host}:{port}/redoc")
-        console.print(f"   • OpenAPI: http://{host}:{port}/openapi.json")
-
-    console.print("\n[green]✅ 服务器配置完成,正在启动...[/green]\n")
-
-
-def main() -> None:
-    """主入口函数"""
-    try:
-        cli()
-    except KeyboardInterrupt:
-        console.print("\n[yellow]👋 再见![/yellow]")
-    except Exception as e:
-        console.print(f"\n[red]❌ 错误: {e}[/red]")
-        raise typer.Exit(1) from e
+    # 启动服务器
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=reload,
+        workers=workers,
+        log_level=log_level.lower(),
+        access_log=access_log,
+        log_config=None,  # 使用我们自己的日志配置
+    )
 
 
 if __name__ == "__main__":
-    main()
+    cli()

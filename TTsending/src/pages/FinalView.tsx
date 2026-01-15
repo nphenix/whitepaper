@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { Send, Globe, LibraryBig, FileSearch, ChevronLeft, ChevronRight, ExternalLink, Sparkles, Languages, CheckCircle2, Bot, Search, MessageSquare, History, BookOpen, Lightbulb, ChevronDown, Bell, HelpCircle, User } from 'lucide-react';
 import { API_URL } from '../config/api';
@@ -29,6 +29,7 @@ export default function FinalView() {
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [selectedText, setSelectedText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const sseRef = useRef<EventSource | null>(null);
 
   const quickActionsConfig = {
     search: [
@@ -50,6 +51,13 @@ export default function FinalView() {
 
   useEffect(() => {
     fetchDraft();
+    return () => {
+      // 组件卸载时关闭 SSE
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
+    };
   }, [outlineId]);
 
   const loadMockData = () => {
@@ -138,7 +146,7 @@ export default function FinalView() {
       };
 
       // 关键：不允许“API失败就降级到 mock”，否则 e2e 会直接失败（mock_detector）
-      // 这里采用轮询：等待后端生成完成后再展示。
+      // 改为 SSE：订阅后端推送的生成状态，避免前端高频轮询。
 
       // 尝试触发一次生成：如果后端返回明确错误，直接展示（避免一直轮询到超时）
       try {
@@ -157,70 +165,128 @@ export default function FinalView() {
         console.warn('触发草稿生成失败(将继续轮询draft):', e);
       }
 
-      const maxWaitMs = 5 * 60 * 1000; // 最多等待 5 分钟
-      const intervalMs = 2000;
-      const start = Date.now();
-
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        let raw: any = null;
-        try {
-          const response = await fetchWithTimeout(`${API_URL}/draft/${outlineId}`, undefined, 15000);
-          raw = await response.json();
-        } catch (e) {
-          // 后端繁忙/短暂不可用时，避免 await fetch 永久挂起导致页面一直停在“生成中...”
-          console.warn('获取草稿失败(将重试):', e);
-          if (Date.now() - start > maxWaitMs) {
-            console.error('等待草稿生成超时（draft接口持续不可用）');
-            break;
-          }
-          await new Promise((r) => setTimeout(r, intervalMs));
-          continue;
-        }
-        // 后端统一响应通常是 { success: true, data: {...} }
-        // 兼容旧/非统一响应：也可能直接返回 { success: true, draft: "..." }
-        const payload = raw?.data ?? raw;
-        const draftText = payload?.draft;
-
-        if (raw?.success && typeof draftText === 'string' && draftText.trim().length > 0) {
-          setDraftContent(draftText);
-
-          // 获取来源信息（可选）
-          try {
-            const sourcesResponse = await fetchWithTimeout(`${API_URL}/sources/${outlineId}`, undefined, 15000);
-            const sourcesRaw = await sourcesResponse.json();
-            const sourcesPayload = sourcesRaw?.data ?? sourcesRaw;
-            // sources 接口在后端实现中是根字段 sources（非 data），这里做兼容
-            const sourcesList = sourcesPayload?.sources ?? sourcesRaw?.sources;
-            if (sourcesRaw?.success && Array.isArray(sourcesList)) {
-              setSources(sourcesList);
-            }
-          } catch {
-            // ignore
-          }
-
-          break;
-        }
-
-        // 后端返回明确错误时，停止等待并展示错误（避免无意义轮询）
-        if (raw && raw.success === false) {
-          const msg = raw.error || raw.message || '草稿生成失败';
-          setDraftError(msg);
-          break;
-        }
-
-        if (Date.now() - start > maxWaitMs) {
-          // 超时：不降级 mock，保留“生成中”状态，方便排查
-          console.error('等待草稿生成超时');
-          break;
-        }
-
-        await new Promise((r) => setTimeout(r, intervalMs));
+      // 关闭旧 SSE（如果有）
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
       }
+
+      // 关键：草稿生成可能很久（按章节生成），不要用 5 分钟硬超时误判失败。
+      // 改为：
+      // - 无输出超时：长时间收不到 status/done/error 事件时才提示（通常是网络/代理问题）
+      // - 总等待上限：防止无限等待
+      const inactivityTimeoutMs = 3 * 60 * 1000; // 3min 无任何事件输出
+      const maxWaitMs = 2 * 60 * 60 * 1000; // 2h 总等待兜底
+      let inactivityTimerId: number | null = null;
+      const resetInactivityTimeout = () => {
+        if (inactivityTimerId) window.clearTimeout(inactivityTimerId);
+        inactivityTimerId = window.setTimeout(() => {
+          setDraftError('等待草稿生成中（长时间无进度回传），请检查网络/代理配置，或稍后刷新重试');
+          // 不强制终止：EventSource 会自动重连；用户也可刷新
+        }, inactivityTimeoutMs);
+      };
+      resetInactivityTimeout();
+
+      const hardTimeoutId = window.setTimeout(() => {
+        if (sseRef.current) {
+          sseRef.current.close();
+          sseRef.current = null;
+        }
+        setDraftError('等待草稿生成超时（已超过最长等待时间）');
+        setIsLoading(false);
+      }, maxWaitMs);
+
+      // 使用相对 URL（走 Vite proxy）订阅 SSE
+      const es = new EventSource(`${API_URL}/draft/${outlineId}/events`);
+      sseRef.current = es;
+
+      es.addEventListener('status', (evt: MessageEvent) => {
+        resetInactivityTimeout();
+        try {
+          const data = JSON.parse(evt.data || '{}');
+          // 这里可选：你可以把 data.progress 显示为进度条
+          // console.debug('draft status:', data);
+          // 注意：timeout 在后端可能代表 SSE 连接周期结束/重连，不应当直接判为失败
+          if (data?.state === 'failed' || data?.state === 'cancelled') {
+            const msg = data?.message || '草稿生成失败';
+            setDraftError(msg);
+            if (inactivityTimerId) window.clearTimeout(inactivityTimerId);
+            window.clearTimeout(hardTimeoutId);
+            es.close();
+            sseRef.current = null;
+            setIsLoading(false);
+          } else {
+            // 收到状态更新后清掉旧错误提示（比如之前有“无进度回传”提示）
+            setDraftError(null);
+          }
+        } catch {
+          // ignore
+        }
+      });
+
+      es.addEventListener('done', async (evt: MessageEvent) => {
+        try {
+          const data = JSON.parse(evt.data || '{}');
+          const draftText = data?.draft;
+          if (typeof draftText === 'string' && draftText.trim().length > 0) {
+            setDraftContent(draftText);
+          }
+        } finally {
+          if (inactivityTimerId) window.clearTimeout(inactivityTimerId);
+          window.clearTimeout(hardTimeoutId);
+          es.close();
+          sseRef.current = null;
+        }
+
+        // 获取来源信息（可选）
+        try {
+          const sourcesResponse = await fetchWithTimeout(`${API_URL}/sources/${outlineId}`, undefined, 15000);
+          const sourcesRaw = await sourcesResponse.json();
+          const sourcesPayload = sourcesRaw?.data ?? sourcesRaw;
+          const sourcesList = sourcesPayload?.sources ?? sourcesRaw?.sources;
+          if (sourcesRaw?.success && Array.isArray(sourcesList)) {
+            setSources(sourcesList);
+          }
+        } catch {
+          // ignore
+        } finally {
+          setIsLoading(false);
+        }
+      });
+
+      es.addEventListener('error', (evt: any) => {
+        // 两类 error：
+        // 1) 浏览器连接错误（无 evt.data）：EventSource 会自动重连，不应立刻判失败
+        // 2) 服务端推送 event: error（有 evt.data）：包含失败信息，应展示给用户
+        try {
+          const raw = typeof evt?.data === 'string' ? evt.data : '';
+          if (raw && raw.trim()) {
+            const data = JSON.parse(raw);
+            const state = data?.state;
+            // timeout 多半是连接周期结束/重连，忽略即可；failed/cancelled 才算真正失败
+            if (state === 'failed' || state === 'cancelled') {
+              const msg = data?.message || '草稿生成失败';
+              setDraftError(msg);
+              if (inactivityTimerId) window.clearTimeout(inactivityTimerId);
+              window.clearTimeout(hardTimeoutId);
+              es.close();
+              sseRef.current = null;
+              setIsLoading(false);
+              return;
+            }
+            // 非致命错误：提示但继续等待（让浏览器自动重连）
+            console.warn('SSE server error event:', data);
+          } else {
+            console.warn('SSE connection error:', evt);
+          }
+        } catch (e) {
+          console.warn('SSE error parse failed:', e);
+        }
+      });
     } catch (error) {
       console.error('Error fetching draft:', error);
     } finally {
-      setIsLoading(false);
+      // 由 SSE done/timeout 控制 isLoading；这里不要强制置 false
     }
   };
 

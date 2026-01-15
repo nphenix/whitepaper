@@ -455,9 +455,9 @@ class OpenAICompatibleProvider(LLMProvider):
             model = OpenAISDKAdapter(
                 model_name=config["model_name"],
                 temperature=config["temperature"],
-                max_tokens=config["max_tokens"],
                 api_key=config["api_key"],
                 base_url=config["base_url"],
+                max_tokens=config["max_tokens"],
                 timeout=float(timeout_value),
             )
 
@@ -665,6 +665,196 @@ class DashScopeProvider(LLMProvider):
         )
 
 
+class OllamaProvider(LLMProvider):
+    """Ollama 本地模型提供商(已废弃,请使用 FlagEmbeddingProvider)"""
+
+    def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
+        """Ollama 聊天模型已废弃,使用 FlagEmbeddingProvider"""
+        raise NotImplementedError(
+            "Ollama provider 已废弃,请使用 flagembedding provider.\n"
+            "请更新 .env 文件: EMBEDDING_PROVIDER=flagembedding, RERANK_PROVIDER=flagembedding"
+        )
+
+    def create_embedding_model(self, config: dict[str, Any]) -> Any:
+        """Ollama 嵌入模型已废弃,使用 FlagEmbeddingProvider"""
+        raise NotImplementedError(
+            "Ollama provider 已废弃,请使用 flagembedding provider.\n"
+            "请更新 .env 文件: EMBEDDING_PROVIDER=flagembedding, RERANK_PROVIDER=flagembedding"
+        )
+
+    def create_rerank_model(self, config: dict[str, Any]) -> Any:
+        """Ollama 重排序模型已废弃,使用 FlagEmbeddingProvider"""
+        raise NotImplementedError(
+            "Ollama provider 已废弃,请使用 flagembedding provider.\n"
+            "请更新 .env 文件: EMBEDDING_PROVIDER=flagembedding, RERANK_PROVIDER=flagembedding"
+        )
+
+
+class FlagEmbeddingProvider(LLMProvider):
+    """FlagEmbedding 本地模型提供商
+    
+    使用本地部署的 FlagEmbedding 模型(支持 Embedding 和 Rerank)。
+    模型文件存放在 ./models/ 目录下。
+    """
+
+    def create_chat_model(self, config: dict[str, Any]) -> BaseLanguageModel:
+        """FlagEmbedding 不支持聊天模型"""
+        error_msg = "FlagEmbedding 不支持聊天模型"
+        raise NotImplementedError(error_msg)
+
+    def create_embedding_model(self, config: dict[str, Any]) -> Any:
+        """创建 FlagEmbedding 嵌入模型
+        
+        使用本地模型文件,支持批量嵌入和异步操作.
+        """
+        from .flagembedding_adapter import FlagEmbeddingModels
+        
+        model_path = config.get("model_path")
+        # 重要：FlagEmbedding 在部分环境下执行 model.half() 可能触发
+        # `RuntimeError: expected scalar type Float but found Half`，导致向量检索失败。
+        # 为了稳定性，Embedding 默认关闭 fp16（Rerank 仍默认开启 fp16）。
+        use_fp16 = config.get("use_fp16", False)
+        
+        if not model_path:
+            error_msg = "EMBEDDING_MODEL_PATH 环境变量未设置,请在 .env 文件中配置"
+            raise ValueError(error_msg)
+        
+        return FlagEmbeddingModels.get_embedding_model(
+            model_path=model_path,
+            use_fp16=use_fp16
+        )
+
+    def create_rerank_model(self, config: dict[str, Any]) -> Any:
+        """创建 FlagEmbedding 重排序模型
+        
+        使用本地模型文件,支持批量重排序.
+        """
+        from .flagembedding_adapter import FlagEmbeddingModels
+        
+        model_path = config.get("model_path")
+        use_fp16 = config.get("use_fp16", True)
+        
+        if not model_path:
+            error_msg = "RERANK_MODEL_PATH 环境变量未设置,请在 .env 文件中配置"
+            raise ValueError(error_msg)
+        
+        return FlagEmbeddingModels.get_rerank_model(
+            model_path=model_path,
+            use_fp16=use_fp16
+        )
+
+
+class OllamaRerankWrapper:
+    """Ollama/vLLM/Xinference 重排序模型包装类
+
+    通过 OpenAI 兼容的 /v1/rerank 端点调用 rerank 模型.
+    支持 vLLM、Xinference 等提供 OpenAI 兼容 API 的推理服务.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "http://localhost:8000",
+        top_n: int = 10,
+        api_key: str = "",
+    ):
+        """初始化 Ollama 重排序模型包装类
+
+        Args:
+            model: 模型名称 (如 bge-reranker-v2-m3)
+            base_url: 服务基础URL (vLLM/Xinference 默认端口 8000, Ollama 默认 11434)
+            top_n: 返回 top-n 结果
+            api_key: API 密钥 (本地部署通常无需设置)
+        """
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.top_n = top_n
+        self.api_key = api_key
+
+        # 标准化 base_url,确保使用 /v1/rerank 端点
+        if "/v1" not in self.base_url:
+            self.base_url = f"{self.base_url}/v1"
+
+        logger.info(
+            "初始化 OllamaRerankWrapper: model=%s, base_url=%s, top_n=%d",
+            model,
+            self.base_url,
+            top_n,
+        )
+
+    def rerank(
+        self, query: str, documents: list[str], top_n: int | None = None
+    ) -> list[dict]:
+        """执行重排序
+
+        Args:
+            query: 查询文本
+            documents: 文档列表
+            top_n: 返回 top-n 结果,如果为 None 则使用初始化时的 top_n
+
+        Returns:
+            重排序后的结果列表,每个元素包含文档和相关性分数
+        """
+        import requests
+
+        top_n = top_n or self.top_n
+
+        try:
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
+            # 使用 OpenAI 兼容的 /v1/rerank 端点
+            url = f"{self.base_url}/rerank"
+
+            data = {"model": self.model, "query": query, "documents": documents}
+
+            response = requests.post(
+                url, headers=headers, json=data, timeout=60
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                results = []
+
+                # 解析 OpenAI 兼容格式的响应
+                # 响应格式: {"data": [...], "model": "...", "usage": {...}}
+                for item in result.get("data", []):
+                    results.append(
+                        {
+                            "document": item.get("document", ""),
+                            "index": item.get("index", 0),
+                            "relevance_score": item.get("relevance_score", 0.0),
+                        }
+                    )
+
+                logger.info(
+                    "Ollama rerank 完成: query=%s, documents=%d, results=%d",
+                    query[:50] + "..." if len(query) > 50 else query,
+                    len(documents),
+                    len(results),
+                )
+                return results
+            else:
+                logger.error(
+                    "Ollama rerank 失败: status=%d, response=%s",
+                    response.status_code,
+                    response.text[:500],
+                )
+                return []
+
+        except requests.exceptions.ConnectionError as e:
+            logger.error(
+                "Ollama rerank 连接失败: base_url=%s, error=%s",
+                self.base_url,
+                str(e),
+            )
+            return []
+        except Exception as e:
+            logger.error("Ollama rerank 异常: %s", str(e))
+            return []
+
+
 class LLMService:
     """LLM 服务单例
 
@@ -704,6 +894,7 @@ class LLMService:
             "gemini": GeminiProvider(),
             "anthropic": AnthropicProvider(),
             "dashscope": DashScopeProvider(),
+            "flagembedding": FlagEmbeddingProvider(),  # FlagEmbedding 本地部署
         }
         logger.info("已注册 %d 个 LLM 提供商", len(self._providers))
 
@@ -1121,6 +1312,7 @@ class LLMService:
             "batch_size": embedding_config.batch_size,
             "api_key": embedding_config.api_key,
             "model_name": embedding_config.model_name,
+            "base_url": embedding_config.base_url,
         }
 
         return ConfigValidator.build_embedding_config(provider, config_dict)

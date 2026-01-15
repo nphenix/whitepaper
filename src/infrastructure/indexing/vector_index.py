@@ -240,6 +240,17 @@ class VectorIndexBuilder:
                         )
                         continue
 
+                    # 特殊处理document_title_from_content等关键字段，确保它们被保留
+                    if key in ["document_title_from_content", "title", "document_title", "filename"]:
+                        if isinstance(value, str):
+                            cleaned_metadata[key] = value
+                            logger.debug(f"保留关键字段: {key}={value[:50] if len(value) > 50 else value}")
+                            continue
+                        elif value is None:
+                            cleaned_metadata[key] = None
+                            logger.debug(f"保留关键字段(为None): {key}")
+                            continue
+
                     # LlamaIndex要求metadata值必须是str, int, float, None
                     # 处理复杂类型:字典,列表等
                     if isinstance(value, (dict, list)):

@@ -607,6 +607,18 @@ def _convert_to_optimized_outline(result: dict[str, Any]) -> OptimizedOutline:
                     except Exception:
                         change_type = OptimizationChangeType.NONE
 
+                    # 处理 metadata 字段：支持 JSON 字符串或字典
+                    metadata_value = node.get("metadata")
+                    if isinstance(metadata_value, str):
+                        try:
+                            metadata = json.loads(metadata_value) if metadata_value else {}
+                        except (json.JSONDecodeError, TypeError):
+                            metadata = {}
+                    elif isinstance(metadata_value, dict):
+                        metadata = metadata_value
+                    else:
+                        metadata = {}
+
                     out.append(
                         OptimizedOutlineItem(
                             id=opt_item_id,
@@ -620,7 +632,7 @@ def _convert_to_optimized_outline(result: dict[str, Any]) -> OptimizedOutline:
                             optimization_suggestions=node.get("optimization_suggestions") or [],
                             is_accepted=bool(node.get("is_accepted", False)),
                             user_feedback=node.get("user_feedback"),
-                            metadata=node.get("metadata") or {},
+                            metadata=metadata,
                         )
                     )
 
@@ -720,6 +732,18 @@ def _convert_to_optimized_outline(result: dict[str, Any]) -> OptimizedOutline:
         elif optimization_suggestions is None:
             optimization_suggestions = []
 
+        # 处理 metadata 字段：支持 JSON 字符串或字典
+        metadata_value = item_data.get("metadata")
+        if isinstance(metadata_value, str):
+            try:
+                metadata = json.loads(metadata_value) if metadata_value else {}
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
+        elif isinstance(metadata_value, dict):
+            metadata = metadata_value
+        else:
+            metadata = {}
+
         # 构建OptimizedOutlineItem
         optimized_item_obj = OptimizedOutlineItem(
             id=uuid.UUID(item_data["id"]),
@@ -733,7 +757,7 @@ def _convert_to_optimized_outline(result: dict[str, Any]) -> OptimizedOutline:
             optimization_suggestions=optimization_suggestions,
             is_accepted=bool(item_data.get("is_accepted", False)),
             user_feedback=item_data.get("user_feedback"),
-            metadata=item_data.get("metadata", {}),
+            metadata=metadata,
         )
         optimized_items.append(optimized_item_obj)
 

@@ -377,6 +377,7 @@ def _add_routes(app: FastAPI) -> None:
         draft_mvp,
         frontend_adapter,
         frontend_integration,
+        guide_routes,
         industry_selection,
         knowledge_base,
         outline_frontend,
@@ -398,6 +399,8 @@ def _add_routes(app: FastAPI) -> None:
     app.include_router(draft_mvp.router)
     # 添加草稿前端集成路由
     app.include_router(draft_frontend.router)
+    # 添加指南管理路由
+    app.include_router(guide_routes.router)
     # 添加前端适配层路由(必须在最后注册,避免路由冲突)
     app.include_router(frontend_adapter.router)
     # TODO: 添加其他路由

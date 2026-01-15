@@ -17,6 +17,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.shared.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class DraftStatus(str, Enum):
     """草稿状态枚举"""
@@ -675,12 +679,28 @@ class Draft(BaseModel):
         Args:
             section: 章节
         """
-        # 验证父级存在
+        # 验证父级存在（宽松模式：如果父级不存在，自动降级为根章节）
         if section.parent_id:
             parent_exists = any(parent.id == section.parent_id for parent in self.sections)
             if not parent_exists:
-                error_msg = f"父级章节 {section.parent_id} 不存在"
-                raise ValueError(error_msg)
+                # 父级不存在，自动降级为根章节（避免草稿生成失败）
+                logger.warning(
+                    "父级章节 %s 不存在，将章节 '%s' 降级为根章节",
+                    section.parent_id,
+                    section.title or section.id
+                )
+                # 创建一个新的 section，移除 parent_id
+                section = DraftSection(
+                    id=section.id,
+                    parent_id=None,  # 降级为根章节
+                    section_type=section.section_type,
+                    level=section.level,
+                    title=section.title,
+                    content=section.content,
+                    order=section.order,
+                    source_references=section.source_references,
+                    metadata=section.metadata,
+                )
 
         # 检查是否已存在相同ID的章节
         if any(existing.id == section.id for existing in self.sections):
@@ -696,32 +716,135 @@ class Draft(BaseModel):
         """获取草稿内容(Markdown)
 
         说明：前端适配层会直接调用 draft.get_content()。
+        不生成草稿的title作为文档标题，而是使用第一个section的title作为文档主标题
+        
+        优化版本（2026-01-09）：
+        - 修复重复函数定义问题
+        - 优化章节渲染逻辑
+        - 更好地处理层级关系
         """
-        lines: list[str] = []
-        lines.append(f"# {self.title}\n")
+        import re
 
+        lines: list[str] = []
+
+        # 定义辅助函数（仅定义一次）
+        def strip_markdown_headers_from_content(content: str) -> str:
+            """
+            清理section content中的所有markdown标题行
+            问题：数据库中section的content字段包含了完整的markdown内容（包括子章节标题）
+            这些子章节标题会导致重复渲染
+            解决：移除content中所有的markdown标题行（#开头的行），只保留正文内容
+            """
+            if not content:
+                return content
+
+            cleaned_lines = []
+            for line in content.split('\n'):
+                # 检查是否是以#开头的markdown标题行
+                stripped = line.strip()
+                if stripped.startswith('#'):
+                    # 跳过markdown标题行
+                    continue
+                else:
+                    cleaned_lines.append(line)
+
+            result = '\n'.join(cleaned_lines)
+            # 清理多余的空行
+            result = re.sub(r'\n{3,}', '\n\n', result)
+            return result.strip()
+
+        # 按层级和order排序所有章节
+        sorted_sections = sorted(self.sections, key=lambda s: (s.level or 1, s.order or 0))
+
+        # 分离根章节和非根章节
+        root_sections = []
+        child_sections_by_parent: dict[str, list[DraftSection]] = {}
+
+        for s in sorted_sections:
+            if s.parent_id is None:
+                root_sections.append(s)
+            else:
+                parent_id_str = str(s.parent_id)
+                if parent_id_str not in child_sections_by_parent:
+                    child_sections_by_parent[parent_id_str] = []
+                child_sections_by_parent[parent_id_str].append(s)
+
+        # 查找第一个SECTION类型的section作为文档主标题
+        main_title = None
+        main_section_content = None
+        main_section_id = None
+
+        for s in root_sections:
+            section_type_str = str(s.section_type)
+            if main_title is None and section_type_str == "SECTION" and s.title:
+                main_title = s.title
+                main_section_content = s.content
+                main_section_id = s.id
+                break
+
+        # 添加文档主标题（如果找到）
+        if main_title:
+            lines.append(f"# {main_title}\n")
+            # 渲染主section的内容（清理markdown标题）
+            if main_section_content:
+                cleaned_content = strip_markdown_headers_from_content(main_section_content)
+                if cleaned_content:
+                    lines.append(f"{cleaned_content}\n")
+
+        # 添加描述（如果有）
         if self.description:
             lines.append(f"{self.description}\n")
 
-        # 按层级/顺序渲染章节
-        sorted_sections = sorted(self.sections, key=lambda s: (s.level, s.order))
-        root_sections = [s for s in sorted_sections if s.parent_id is None]
+        # 用于追踪已渲染的章节，避免重复
+        rendered_titles: set[str] = set()
+        rendered_section_ids: set[str] = set()
 
-        def render_section(section: DraftSection, level: int) -> None:
+        # 添加主标题到已渲染列表
+        if main_title:
+            rendered_titles.add(main_title.strip().lower())
+
+        def render_section(section: DraftSection, level: int, parent_id: str | None = None) -> None:
+            """递归渲染章节"""
+            # 检查是否已渲染（避免循环引用或重复）
+            section_id_str = str(section.id)
+            if section_id_str in rendered_section_ids:
+                return
+            rendered_section_ids.add(section_id_str)
+
+            # 检查标题是否已渲染（避免同一标题重复）
+            if section.title:
+                title_key = section.title.strip().lower()
+                if title_key in rendered_titles:
+                    # 但仍然渲染内容（可能有不同的子章节）
+                    pass
+                else:
+                    rendered_titles.add(title_key)
+
+            # 渲染标题
             if section.title:
                 # level=1 对应 Markdown ##，避免与文档标题冲突
                 prefix = "#" * min(max(level + 1, 2), 6)
                 lines.append(f"{prefix} {section.title}\n")
+
+            # 渲染内容（清理markdown标题）
             if section.content:
-                lines.append(f"{section.content}\n")
+                cleaned_content = strip_markdown_headers_from_content(section.content)
+                if cleaned_content:
+                    lines.append(f"{cleaned_content}\n")
 
-            children = [s for s in sorted_sections if s.parent_id == section.id]
-            children = sorted(children, key=lambda s: (s.level, s.order))
+            # 获取并渲染子章节
+            children = child_sections_by_parent.get(section_id_str, [])
+            # 按order排序子章节
+            children = sorted(children, key=lambda s: (s.order or 0))
             for child in children:
-                render_section(child, level + 1)
+                render_section(child, level + 1, section_id_str)
 
+        # 渲染根章节（跳过已作为主标题的章节）
         for section in root_sections:
-            render_section(section, max(1, section.level))
+            section_id_str = str(section.id)
+            if section_id_str == str(main_section_id):
+                continue  # 跳过主标题章节
+            render_section(section, section.level or 1)
 
         return "\n".join(lines).strip()
 

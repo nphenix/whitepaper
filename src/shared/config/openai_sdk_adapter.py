@@ -10,6 +10,7 @@ OpenAI SDK 到 LangChain 的适配器
 - OpenAI SDK 已验证可以正常工作，但 LangChain 失败时
 """
 
+import time
 from typing import Any, Iterator
 
 from langchain_core.language_models import BaseChatModel
@@ -37,9 +38,9 @@ class OpenAISDKAdapter(BaseChatModel):
         self,
         model_name: str,
         temperature: float,
-        max_tokens: int,
         api_key: str,
         base_url: str,
+        max_tokens: int | None = None,
         timeout: float = 60.0,
         **kwargs,
     ):
@@ -48,9 +49,9 @@ class OpenAISDKAdapter(BaseChatModel):
         Args:
             model_name: 模型名称
             temperature: 温度参数
-            max_tokens: 最大 token 数
             api_key: API 密钥
             base_url: API 基础 URL（完整路径，包括 /endpoints 等）
+            max_tokens: 最大 token 数，如果为 None 则不设置，让模型自动决定
             timeout: 超时时间（秒）
             **kwargs: 其他参数
         """
@@ -66,6 +67,8 @@ class OpenAISDKAdapter(BaseChatModel):
         object.__setattr__(self, "_api_key", api_key)
         object.__setattr__(self, "_base_url", base_url)
         object.__setattr__(self, "_timeout", timeout)
+        # 连接类异常的额外重试次数（OpenAI SDK 自带 retry 之外，再加一层客户端重建重试）
+        object.__setattr__(self, "_connection_retries", int(kwargs.get("connection_retries", 2)))
         
         # 创建 OpenAI 客户端（已验证可以正常工作）
         object.__setattr__(
@@ -83,6 +86,20 @@ class OpenAISDKAdapter(BaseChatModel):
             model_name,
             base_url,
             timeout,
+        )
+
+    def _recreate_client(self) -> None:
+        """在连接异常后重建 OpenAI 客户端，避免 httpx 连接池处于坏状态。"""
+        from openai import OpenAI
+
+        object.__setattr__(
+            self,
+            "_client",
+            OpenAI(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                timeout=self._timeout,
+            ),
         )
 
     def _generate(
@@ -103,6 +120,7 @@ class OpenAISDKAdapter(BaseChatModel):
         Returns:
             LangChain LLMResult
         """
+        openai_messages: list[dict[str, Any]] = []
         try:
             # 转换 LangChain 消息格式为 OpenAI SDK 格式
             openai_messages = self._convert_messages(messages)
@@ -124,8 +142,12 @@ class OpenAISDKAdapter(BaseChatModel):
                 "model": self._model_name,
                 "messages": openai_messages,
                 "temperature": self._temperature,
-                "max_tokens": self._max_tokens,
             }
+            
+            # 只有当 max_tokens 不为 None 时才添加到请求参数中
+            # 如果不设置 max_tokens，模型会根据内容自动决定输出长度（最佳实践）
+            if self._max_tokens is not None:
+                request_params["max_tokens"] = self._max_tokens
             
             # 添加停止词（如果提供）
             if stop:
@@ -150,6 +172,19 @@ class OpenAISDKAdapter(BaseChatModel):
             }
             other_kwargs = {k: v for k, v in kwargs.items() 
                            if k not in excluded_params}
+            
+            # 特殊处理：如果 max_tokens 为 None，从 request_params 中移除（让模型自动决定）
+            # 这样可以覆盖模型创建时的 max_tokens 设置
+            if "max_tokens" in other_kwargs and other_kwargs["max_tokens"] is None:
+                # 移除 request_params 中的 max_tokens（如果之前设置了）
+                request_params.pop("max_tokens", None)
+                # 从 other_kwargs 中移除，不传递给 API
+                other_kwargs.pop("max_tokens")
+                logger.debug("max_tokens=None，已移除，让模型自动决定输出长度")
+            elif "max_tokens" in other_kwargs:
+                # 如果 other_kwargs 中有 max_tokens 且不为 None，覆盖默认值
+                request_params["max_tokens"] = other_kwargs.pop("max_tokens")
+                logger.debug("使用运行时指定的 max_tokens: %d", request_params["max_tokens"])
             
             # 记录被排除的参数（用于调试）
             excluded = {k: v for k, v in kwargs.items() if k in excluded_params}
@@ -237,8 +272,50 @@ class OpenAISDKAdapter(BaseChatModel):
                              for k, v in item.items() if k != "image_url" or not isinstance(v, dict) or "url" not in v or len(v.get("url", "")) < 100}
                         )
             
+            import random
+            import time
+            import httpx
+            import httpcore
+            from openai import APIConnectionError
+
+            last_error: Exception | None = None
+            max_attempts = max(1, int(self._connection_retries) + 1)
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    response = self._client.chat.completions.create(**request_params)
+                    last_error = None
+                    break
+                except Exception as api_error:
+                    last_error = api_error
+
+                    # 仅对连接类异常做“重建客户端+重试”
+                    is_conn = isinstance(api_error, (APIConnectionError, httpx.RemoteProtocolError, httpcore.RemoteProtocolError))
+                    if not is_conn or attempt >= max_attempts:
+                        break
+
+                    # 指数退避 + 抖动，避免雪崩
+                    sleep_s = min(2.0, 0.25 * (2 ** (attempt - 1))) + random.random() * 0.25
+                    logger.warning(
+                        "OpenAI SDK 连接异常，重建客户端并重试: attempt=%d/%d, sleep=%.2fs, err=%s",
+                        attempt,
+                        max_attempts,
+                        sleep_s,
+                        api_error,
+                    )
+                    try:
+                        self._recreate_client()
+                    except Exception as recreate_err:
+                        logger.warning("重建 OpenAI client 失败(继续重试原client): %s", recreate_err)
+                    time.sleep(sleep_s)
+
+            if last_error is not None:
+                # 走下面的统一错误日志逻辑
+                raise last_error
+
             try:
-                response = self._client.chat.completions.create(**request_params)
+                # 这里 response 已经拿到
+                pass
             except Exception as api_error:
                 # 记录请求参数的详细信息（用于调试API错误）
                 import json
@@ -361,20 +438,10 @@ class OpenAISDKAdapter(BaseChatModel):
             openai_messages = self._convert_messages(messages)
             
             # 构建请求参数
-            # 注意：GLM-4.6V 流式调用可能对 max_tokens 有更严格的限制
-            # 如果 max_tokens 超过 16384，记录警告但仍然使用配置值
-            max_tokens = self._max_tokens
-            if max_tokens > 16384:
-                logger.warning(
-                    "流式调用使用 max_tokens=%d，如果遇到 400 错误，请考虑降低到 16384 以内",
-                    max_tokens
-                )
-            
             request_params = {
                 "model": self._model_name,
                 "messages": openai_messages,
                 "temperature": self._temperature,
-                "max_tokens": max_tokens,
                 "stream": True,  # 启用流式输出
             }
             
@@ -389,35 +456,112 @@ class OpenAISDKAdapter(BaseChatModel):
             }
             other_kwargs = {k: v for k, v in kwargs.items() 
                            if k not in excluded_params}
+
+            # max_tokens 覆盖逻辑：与 _generate 保持一致
+            # - 默认使用构造时的 max_tokens（如果设置）
+            # - 如果运行时传 max_tokens=None，则显式移除，让模型自动决定输出长度
+            # - 如果运行时传 max_tokens=具体值，则覆盖默认值
+            if self._max_tokens is not None:
+                request_params["max_tokens"] = self._max_tokens
+
+            if "max_tokens" in other_kwargs and other_kwargs["max_tokens"] is None:
+                request_params.pop("max_tokens", None)
+                other_kwargs.pop("max_tokens")
+                logger.debug("stream: max_tokens=None，已移除，让模型自动决定输出长度")
+            elif "max_tokens" in other_kwargs:
+                request_params["max_tokens"] = other_kwargs.pop("max_tokens")
+                logger.debug("stream: 使用运行时指定的 max_tokens: %d", request_params["max_tokens"])
+
             request_params.update(other_kwargs)
+
+            final_max_tokens = request_params.get("max_tokens")
+            if final_max_tokens is not None and final_max_tokens > 16384:
+                logger.warning(
+                    "流式调用使用 max_tokens=%d（>16384）。若遇到 400/慢响应，请考虑降低到 16384 以内",
+                    final_max_tokens,
+                )
             
             # 调用 OpenAI SDK 流式 API
             logger.debug(
-                "调用OpenAI SDK流式API: model=%s, base_url=%s, messages=%d",
+                "调用OpenAI SDK流式API: model=%s, base_url=%s, messages=%d, max_tokens=%s",
                 self._model_name,
                 self._base_url,
                 len(openai_messages),
+                final_max_tokens,
             )
             
+            t0 = time.monotonic()
             stream = self._client.chat.completions.create(**request_params)
             
             # 转换流式响应为 LangChain 格式
             # 重要：ChatGenerationChunk.message 必须是 BaseMessageChunk（例如 AIMessageChunk），
             # 不能是 AIMessage，否则会触发 Pydantic 校验错误。
+            first_token_s: float | None = None
+            chunks = 0
+            chars = 0
+            stream_id: str | None = None
             for chunk in stream:
+                if stream_id is None and getattr(chunk, "id", None):
+                    stream_id = str(getattr(chunk, "id"))
+
                 if chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         content = delta.content
+                        if first_token_s is None:
+                            first_token_s = time.monotonic() - t0
+                            # 只有在首 token 很慢时才打到 warning，避免噪音
+                            if first_token_s >= 10:
+                                logger.warning(
+                                    "LLM 首 token 慢: model=%s, stream_id=%s, ttfb=%.2fs, max_tokens=%s",
+                                    self._model_name,
+                                    stream_id,
+                                    first_token_s,
+                                    final_max_tokens,
+                                )
+                            else:
+                                logger.debug(
+                                    "LLM 首 token: model=%s, stream_id=%s, ttfb=%.2fs",
+                                    self._model_name,
+                                    stream_id,
+                                    first_token_s,
+                                )
+
                         message_chunk = AIMessageChunk(content=content)
                         generation_chunk = ChatGenerationChunk(message=message_chunk)
-                        
+                        chunks += 1
+                        chars += len(content)
+
                         # 通知运行管理器
                         if run_manager:
                             run_manager.on_llm_new_token(content)
-                            
+
                         yield generation_chunk
-                        
+
+            total_s = time.monotonic() - t0
+            # 仅对“显著慢”的流式调用输出高优先级日志，便于定位抖动
+            if total_s >= 60:
+                logger.warning(
+                    "LLM 流式调用耗时过长: model=%s, stream_id=%s, total=%.2fs, ttfb=%s, chunks=%d, chars=%d, max_tokens=%s",
+                    self._model_name,
+                    stream_id,
+                    total_s,
+                    f"{first_token_s:.2f}s" if first_token_s is not None else "N/A",
+                    chunks,
+                    chars,
+                    final_max_tokens,
+                )
+            else:
+                logger.debug(
+                    "LLM 流式调用完成: model=%s, stream_id=%s, total=%.2fs, ttfb=%s, chunks=%d, chars=%d",
+                    self._model_name,
+                    stream_id,
+                    total_s,
+                    f"{first_token_s:.2f}s" if first_token_s is not None else "N/A",
+                    chunks,
+                    chars,
+                )
+
         except Exception as e:
             logger.error("OpenAI SDK 流式调用失败: %s", e, exc_info=True)
             raise

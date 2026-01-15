@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,12 +24,34 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from cli.base import BaseCLI
+from src.application.services.indexing_progress_service import get_progress_service
+from src.application.services.document_service import DocumentService
+from src.application.services.knowledge_base_helper import create_knowledge_base_from_documents
 from src.application.services.knowledge_base_service import (
     KnowledgeBaseService,
     KnowledgeBaseServiceError,
 )
 from src.infrastructure.indexing.hybrid_retriever import QueryType
 from src.shared.utils.logging import get_logger
+from src.shared.config.settings import get_config
+
+# 索引构建器导入（可选依赖）
+try:
+    from src.infrastructure.indexing.bm25_index import BM25IndexBuilder
+    from src.infrastructure.indexing.knowledge_graph import KnowledgeGraphBuilder
+    from src.infrastructure.indexing.metadata_index import MetadataIndexBuilder
+    from src.infrastructure.indexing.vector_index import VectorIndexBuilder
+    from src.infrastructure.storage.chroma.connection import get_connection_manager as get_chroma_connection_manager
+    from src.infrastructure.storage.sqlite.connection import get_connection_manager as get_sqlite_connection_manager
+    INDEX_BUILDERS_AVAILABLE = True
+except ImportError:
+    INDEX_BUILDERS_AVAILABLE = False
+    BM25IndexBuilder = None  # type: ignore[assignment, misc]
+    KnowledgeGraphBuilder = None  # type: ignore[assignment, misc]
+    MetadataIndexBuilder = None  # type: ignore[assignment, misc]
+    VectorIndexBuilder = None  # type: ignore[assignment, misc]
+    get_chroma_connection_manager = None  # type: ignore[assignment, misc]
+    get_sqlite_connection_manager = None  # type: ignore[assignment, misc]
 
 # 创建Typer应用实例
 knowledge_base_app = typer.Typer(
@@ -49,7 +72,56 @@ def get_kb_service() -> KnowledgeBaseService:
     global _kb_service
     if _kb_service is None:
         try:
-            _kb_service = KnowledgeBaseService()
+            # 创建索引构建器实例（真实数据，不使用mock）
+            vector_index_builder = None
+            bm25_index_builder = None
+            metadata_index_builder = None
+            knowledge_graph_builder = None
+
+            if INDEX_BUILDERS_AVAILABLE:
+                # 创建向量索引构建器
+                try:
+                    vector_index_builder = VectorIndexBuilder(
+                        collection_name="whitepaper_documents",
+                        connection_manager=get_chroma_connection_manager(),
+                    )
+                    logger.debug("创建向量索引构建器")
+                except Exception as e:
+                    logger.warning("创建向量索引构建器失败: %s", e)
+
+                # 创建BM25索引构建器
+                try:
+                    config = get_config()
+                    bm25_path = config.data_dir / "bm25_index" / "default.pkl"
+                    bm25_path.parent.mkdir(parents=True, exist_ok=True)
+                    bm25_index_builder = BM25IndexBuilder(index_path=str(bm25_path))
+                    logger.debug("创建BM25索引构建器")
+                except Exception as e:
+                    logger.warning("创建BM25索引构建器失败: %s", e)
+
+                # 创建元数据索引构建器
+                try:
+                    metadata_index_builder = MetadataIndexBuilder(
+                        table_name="document_chunks_metadata",
+                        connection_manager=get_sqlite_connection_manager(),
+                    )
+                    logger.debug("创建元数据索引构建器")
+                except Exception as e:
+                    logger.warning("创建元数据索引构建器失败: %s", e)
+
+            # 创建知识库服务实例（注入索引构建器）
+            progress_service = get_progress_service()
+            _kb_service = KnowledgeBaseService(
+                progress_service=progress_service,
+                vector_index_builder=vector_index_builder,
+                bm25_index_builder=bm25_index_builder,
+                metadata_index_builder=metadata_index_builder,
+                knowledge_graph_builder=knowledge_graph_builder,
+                enable_vector=True,
+                enable_bm25=True,
+                enable_metadata=True,
+                enable_graph=False,
+            )
         except Exception as exc:
             console.print(f"[red]初始化知识库服务失败: {exc}[/red]")
             # 在测试环境中,不要使用typer.Exit
@@ -73,6 +145,169 @@ def format_info(message: str) -> None:
     """格式化信息输出"""
     console.print(Panel(f"[blue]{message}[/blue]", title="信息"))
 
+
+def _load_clean_md_as_langchain_documents(
+    *,
+    file_stem: str,
+    cleaned_root: Path = Path("data/cleaned/documents"),
+) -> list:
+    """从 data/cleaned/documents 下加载某个文件对应的 clean.md 作为 LangChain Document 列表。
+
+    注意：这里不依赖重新上传/重新解析 PDF，只复用预处理缓存产物。
+    目录结构通常为：data/cleaned/documents/{safe_stem}_{xx}/{batchid_filename_extracted}/clean.md
+    """
+    from langchain_core.documents import Document as LangChainDocument
+
+    if not cleaned_root.exists():
+        return []
+
+    # friendly_dir_name = f"{safe_stem}_{hash[:2]}"，hash[:2] 不易从外部复现，故用前缀匹配
+    candidates = [p for p in cleaned_root.glob(f"{file_stem}_*") if p.is_dir()]
+    clean_files: list[Path] = []
+    for c in candidates:
+        clean_files.extend(list(c.rglob("clean.md")))
+
+    docs: list[LangChainDocument] = []
+    for clean_md in sorted(clean_files, key=lambda p: str(p)):
+        try:
+            content = clean_md.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        if not content.strip():
+            continue
+
+        docs.append(
+            LangChainDocument(
+                page_content=content,
+                metadata={
+                    "source": str(clean_md),
+                    "extracted_dir": str(clean_md.parent),
+                    "cleaned": True,
+                    "cache_hit": True,
+                },
+            )
+        )
+
+    return docs
+
+
+def _load_preprocessed_dir_as_langchain_documents(
+    *,
+    file_stem: str,
+    cleaned_root: Path = Path("data/cleaned/documents"),
+) -> list:
+    """从 data/cleaned/documents 下加载某个文件对应的预处理目录，包含图片/图表元数据。
+
+    与 _load_clean_md_as_langchain_documents 的区别：
+    - 使用 PreprocessedDocumentReader 读取 clean.md + clean_content_list.json + images/ + datajson/
+    - 这样索引节点 metadata 中会包含 images/charts 等字段，供后续 RAG 插图/附录严格对齐使用。
+    """
+    if not cleaned_root.exists():
+        return []
+
+    # friendly_dir_name = f"{safe_stem}_{hash[:2]}"，hash[:2] 不易从外部复现，故用前缀匹配
+    candidates = [p for p in cleaned_root.glob(f"{file_stem}_*") if p.is_dir()]
+    extracted_dirs: list[Path] = []
+    for c in candidates:
+        # .../<uuid>_<pdf>.pdf_extracted/
+        extracted_dirs.extend([p for p in c.rglob("*.pdf_extracted") if p.is_dir()])
+        extracted_dirs.extend([p for p in c.rglob("*.docx_extracted") if p.is_dir()])
+
+    # 回退：如果没有 *.pdf_extracted 目录，也允许直接对包含 clean.md 的目录做读取
+    if not extracted_dirs:
+        extracted_dirs = [p.parent for p in c.rglob("clean.md") for c in candidates]  # type: ignore[misc]
+
+    docs: list = []
+    try:
+        from src.infrastructure.parsing.loaders.preprocessed_document_reader import (
+            PreprocessedDocumentReader,
+        )
+    except Exception:
+        # 环境缺依赖时回退到纯 clean.md（保持 CLI 可用）
+        return _load_clean_md_as_langchain_documents(
+            file_stem=file_stem,
+            cleaned_root=cleaned_root,
+        )
+
+    for extracted_dir in sorted({Path(p) for p in extracted_dirs}, key=lambda p: str(p)):
+        try:
+            reader = PreprocessedDocumentReader(
+                source=str(extracted_dir),
+                include_images=True,
+                include_charts=True,
+            )
+            loaded = reader.load()
+            if loaded:
+                docs.extend(loaded)
+        except Exception:
+            continue
+
+    return docs
+
+
+@knowledge_base_app.command("rebuild-document")
+def rebuild_document(
+    document_id: str = typer.Argument(..., help="文档ID（UUID）"),
+    cleaned_root: Path = typer.Option(
+        Path("data/cleaned/documents"),
+        "--cleaned-root",
+        help="清洗产物根目录（默认 data/cleaned/documents）",
+    ),
+) -> None:
+    """基于已生成的 clean.md 缓存产物，为指定 document_id 重建知识库索引（无需重新上传PDF）。
+
+    适用场景：
+    - 解析/清洗/图转json 已成功，但知识库索引创建失败
+    - 修复索引构建逻辑后，希望仅补跑“建库/建索引”
+    """
+    BaseCLI()
+
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except Exception as exc:
+        format_error(f"document_id 不是有效UUID: {document_id} (error={exc})")
+        return
+
+    # 从数据库读取文档记录，获得原始文件名（stable_filename）用于定位缓存目录
+    service = DocumentService()
+    domain_doc = service.get_document(doc_uuid)
+    if not domain_doc:
+        format_error(f"未找到文档记录: {document_id}")
+        return
+
+    file_stem = Path(domain_doc.filename).stem
+    kb_id = f"kb_doc_{doc_uuid.hex[:16]}"
+
+    # 优先走“预处理目录读取器”，确保 images/charts 元数据被带入索引
+    docs = _load_preprocessed_dir_as_langchain_documents(
+        file_stem=file_stem,
+        cleaned_root=cleaned_root,
+    )
+    if not docs:
+        format_error(
+            f"未找到清洗产物 clean.md：file_stem={file_stem}, cleaned_root={cleaned_root}"
+        )
+        return
+
+    format_info(
+        f"开始重建知识库：kb_id={kb_id}, document_id={document_id}, clean_docs={len(docs)}"
+    )
+
+    result = create_knowledge_base_from_documents(
+        documents=docs,
+        document_id=doc_uuid,
+        knowledge_base_id=kb_id,
+        enable_vector=True,
+        enable_bm25=True,
+        enable_metadata=True,
+        return_service=False,
+    )
+
+    if not result:
+        format_error("重建知识库失败（返回None）。请检查后端日志。")
+        return
+
+    format_success(f"知识库重建完成: kb_id={result}")
 
 @knowledge_base_app.command()
 def status() -> None:

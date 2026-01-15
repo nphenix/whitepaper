@@ -45,6 +45,127 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# --- workflow_status 持久化：让 API 重启/多进程情况下仍能看到 step4 任务状态 ---
+
+
+def _ensure_workflow_status_table_exists() -> None:
+    """确保 workflow_status 表存在（兼容未执行迁移的环境）"""
+    from src.infrastructure.storage.sqlite.connection import get_connection_manager
+
+    cm = get_connection_manager()
+    try:
+        with cm.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='workflow_status'"
+            )
+            if cursor.fetchone():
+                return
+    except Exception:
+        pass
+
+    try:
+        with cm.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflow_status (
+                    id TEXT PRIMARY KEY,
+                    workflow_id TEXT NOT NULL UNIQUE,
+                    current_status TEXT NOT NULL,
+                    step1_status TEXT DEFAULT 'pending',
+                    step2_status TEXT DEFAULT 'pending',
+                    step3_status TEXT DEFAULT 'pending',
+                    step4_status TEXT DEFAULT 'pending',
+                    step_data TEXT DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_workflow_status_workflow_id ON workflow_status(workflow_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_workflow_status_current_status ON workflow_status(current_status)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_workflow_status_updated_at ON workflow_status(updated_at)"
+            )
+            conn.commit()
+            logger.info("自动创建workflow_status表（表不存在）")
+    except Exception as e:
+        logger.warning("自动创建workflow_status表失败: %s", e)
+
+
+def _upsert_workflow_status(
+    workflow_id: str,
+    *,
+    current_status: str | None = None,
+    step4_status: str | None = None,
+    step_data_patch: dict[str, Any] | None = None,
+) -> None:
+    """写入/更新 workflow_status（draft 生成任务状态的持久化兜底）"""
+    try:
+        import json
+
+        from src.infrastructure.storage.sqlite.adapter import SQLiteAdapter
+        from src.infrastructure.storage.sqlite.connection import get_connection_manager
+
+        _ensure_workflow_status_table_exists()
+        repo = SQLiteAdapter(
+            table_name="workflow_status",
+            connection_manager=get_connection_manager(),
+            id_field="id",
+            created_at_field="created_at",
+            updated_at_field="updated_at",
+        )
+
+        existing = repo.list(filters={"workflow_id": workflow_id}, limit=1)
+        now = datetime.utcnow().isoformat()
+
+        if existing:
+            row = dict(existing[0])
+            row["updated_at"] = now
+            if current_status:
+                row["current_status"] = current_status
+            if step4_status:
+                row["step4_status"] = step4_status
+
+            if step_data_patch:
+                step_data_raw = row.get("step_data") or "{}"
+                try:
+                    step_data = (
+                        json.loads(step_data_raw)
+                        if isinstance(step_data_raw, str)
+                        else (step_data_raw or {})
+                    )
+                except Exception:
+                    step_data = {}
+                if not isinstance(step_data, dict):
+                    step_data = {}
+                step_data.update(step_data_patch)
+                row["step_data"] = json.dumps(step_data, ensure_ascii=False)
+
+            repo.update(row["id"], row)
+            return
+
+        row = {
+            "id": str(uuid4()),
+            "workflow_id": workflow_id,
+            "current_status": current_status or "step3_sources_selected",
+            "step1_status": "pending",
+            "step2_status": "pending",
+            "step3_status": "pending",
+            "step4_status": step4_status or "pending",
+            "step_data": json.dumps(step_data_patch or {}, ensure_ascii=False),
+            "created_at": now,
+            "updated_at": now,
+        }
+        repo.create(row)
+    except Exception as e:
+        logger.debug("写入workflow_status失败(不影响主流程): %s", e)
+
 
 class TaskStatus(str, Enum):
     """任务状态枚举"""
@@ -120,6 +241,7 @@ class DraftTasks:
         """
         self.redis_pool = redis_pool
         self._task_results: dict[str, TaskResult] = {}
+        self._running_tasks: dict[str, asyncio.Task] = {}  # 存储运行中的asyncio任务引用（用于无Redis模式）
         self._outline_service: OutlineOptimizationService | None = None
         self._industry_service: IndustrySelectionService | None = None
         self._llm_service: LLMService | None = None
@@ -150,6 +272,7 @@ class DraftTasks:
         self,
         optimized_outline_id: str,
         industry_id: str,
+        outline_id: str | None = None,
         database_ids: list[str] | None = None,
         report_type: str | None = None,
         language: str | None = None,
@@ -177,6 +300,7 @@ class DraftTasks:
         task_kwargs = {
             "task_id": task_id,
             "optimized_outline_id": optimized_outline_id,
+            "outline_id": outline_id,
             "industry_id": industry_id,
             "database_ids": database_ids or [],
             "report_type": report_type,
@@ -190,7 +314,24 @@ class DraftTasks:
             task_type=TaskType.GENERATE_DRAFT,
             status=TaskStatus.PENDING,
             start_time=datetime.now(),
+            # 关键：让轮询方能在 PENDING/RUNNING 阶段就按 outline_id 识别任务
+            result={
+                "outline_id": outline_id,
+                "optimized_outline_id": optimized_outline_id,
+            },
         )
+
+        # 持久化：让 API 重启后仍能知道 step4 正在生成（避免轮询误判“无运行任务”）
+        if outline_id:
+            _upsert_workflow_status(
+                str(outline_id),
+                current_status="step3_sources_selected",
+                step4_status="pending",
+                step_data_patch={
+                    "draft_task_id": task_id,
+                    "optimized_outline_id": optimized_outline_id,
+                },
+            )
 
         # 提交任务到队列
         if self.redis_pool:
@@ -199,6 +340,7 @@ class DraftTasks:
                 "execute_generate_draft_task",
                 task_id=task_kwargs["task_id"],
                 optimized_outline_id=str(task_kwargs["optimized_outline_id"]) if task_kwargs["optimized_outline_id"] else None,
+                outline_id=str(task_kwargs["outline_id"]) if task_kwargs["outline_id"] else None,
                 industry_id=str(task_kwargs["industry_id"]) if task_kwargs["industry_id"] else None,
                 database_ids=task_kwargs["database_ids"],
                 report_type=task_kwargs["report_type"],
@@ -214,6 +356,7 @@ class DraftTasks:
                     ctx=None,
                     task_id=str(task_kwargs["task_id"]),
                     optimized_outline_id=str(task_kwargs["optimized_outline_id"]) if task_kwargs["optimized_outline_id"] else None,
+                    outline_id=str(task_kwargs["outline_id"]) if task_kwargs["outline_id"] else None,
                     industry_id=str(task_kwargs["industry_id"]) if task_kwargs["industry_id"] else None,
                     database_ids=task_kwargs["database_ids"],
                     report_type=str(task_kwargs["report_type"]) if task_kwargs["report_type"] else None,
@@ -221,8 +364,15 @@ class DraftTasks:
                     style=str(task_kwargs["style"]) if task_kwargs["style"] else None,
                 )
             )
-            # 存储任务引用以避免垃圾回收
-            task.add_done_callback(lambda t: logger.debug(f"草稿生成任务完成: {task_id}"))
+            # 存储任务引用以避免垃圾回收，并支持取消
+            self._running_tasks[task_id] = task
+            task.add_done_callback(
+                lambda t, tid=task_id: (
+                    self._running_tasks.pop(tid, None),
+                    logger.debug(f"草稿生成任务完成: {tid}")
+                )
+            )
+            logger.info(f"已创建草稿生成任务: task_id={task_id}")
 
         return task_id
 
@@ -251,6 +401,18 @@ class DraftTasks:
         """
         return [result.to_dict() for result in self._task_results.values()]
 
+    def get_running_task_ids(self) -> list[str]:
+        """
+        获取正在运行的任务ID列表（仅无Redis模式）
+
+        Returns:
+            运行中的任务ID列表
+        """
+        return [
+            task_id for task_id, task in self._running_tasks.items()
+            if not task.done()
+        ]
+
     async def cancel_task(self, task_id: str) -> bool:
         """
         取消任务
@@ -272,8 +434,19 @@ class DraftTasks:
         ]:
             return False
 
+        # 尝试取消正在运行的asyncio任务
+        if task_id in self._running_tasks:
+            asyncio_task = self._running_tasks[task_id]
+            if not asyncio_task.done():
+                try:
+                    asyncio_task.cancel()
+                    logger.info(f"已发送取消信号到任务: task_id={task_id}")
+                except Exception as cancel_err:
+                    logger.warning(f"取消任务失败: task_id={task_id}, error={cancel_err}")
+
         task_result.status = TaskStatus.CANCELLED
         task_result.end_time = datetime.now()
+        task_result.error = "任务被用户取消"
 
         logger.info(f"任务已取消: {task_id}")
         return True
@@ -301,6 +474,7 @@ async def execute_generate_draft_task(
     ctx: dict[str, Any] | None,
     task_id: str,
     optimized_outline_id: str,
+    outline_id: str | None,
     industry_id: str,
     database_ids: list[str] | None = None,
     report_type: str | None = None,
@@ -339,13 +513,54 @@ async def execute_generate_draft_task(
 
         logger.info(f"开始执行草稿生成任务: {task_id}")
 
+        # 持久化 RUNNING（让 API 重启后仍可见）
+        if outline_id:
+            _upsert_workflow_status(
+                str(outline_id),
+                current_status="step3_sources_selected",
+                step4_status="pending",
+                step_data_patch={
+                    "draft_task_id": task_id,
+                    "optimized_outline_id": optimized_outline_id,
+                },
+            )
+
         # 1. 获取大纲优化服务
         outline_service = task_manager._get_outline_service()
-        # 使用正确的方法名
-        optimized_outline = outline_service.get_optimized_outline(optimized_outline_id)
-        if not optimized_outline:
-            msg = f"优化大纲不存在: {optimized_outline_id}"
-            raise ValueError(msg)
+
+        # 优先按 optimized_outline_id 从数据库读取；若不存在，则回退到：
+        # - 使用 outline_id 的优化历史（可能由 md 模板“模拟生成”，不落库 optimized_outlines）
+        # 这样可以避免 “优化大纲不存在” 导致整条生成链路失败。
+        from src.interfaces.api.routes.outline_frontend import _convert_to_optimized_outline
+        from src.shared.exceptions.base_exceptions import ResourceNotFoundError
+
+        try:
+            optimized_outline_result = outline_service.get_optimized_outline(optimized_outline_id)
+            optimized_outline = _convert_to_optimized_outline(optimized_outline_result)
+        except ResourceNotFoundError:
+            if not outline_id:
+                msg = f"优化大纲不存在且缺少 outline_id，无法回退: optimized_outline_id={optimized_outline_id}"
+                raise ValueError(msg)
+
+            history = outline_service.get_optimization_history(str(outline_id))
+            if not history:
+                msg = (
+                    f"优化大纲不存在且无优化历史，无法回退: optimized_outline_id={optimized_outline_id}, outline_id={outline_id}"
+                )
+                raise ValueError(msg)
+
+            latest = history[-1]
+            legacy_result = {
+                "optimized_outline": latest.get("optimized_outline") or {},
+                "items": latest.get("items") or [],
+                "summary": latest.get("summary"),
+            }
+            optimized_outline = _convert_to_optimized_outline(legacy_result)
+            logger.warning(
+                "optimized_outline_id 不存在，已从优化历史/模板回退构建 OptimizedOutline: optimized_outline_id=%s, outline_id=%s",
+                optimized_outline_id,
+                outline_id,
+            )
 
         task_result.progress = {"stage": "获取大纲", "progress": 20}
 
@@ -356,8 +571,12 @@ async def execute_generate_draft_task(
             msg = f"行业不存在: {industry_id}"
             raise ValueError(msg)
 
-        # 确保industry有name属性
-        industry_name = getattr(industry, 'name', str(industry))
+        # 兼容：industry 可能是领域对象/ORM对象，也可能是 dict
+        if isinstance(industry, dict):
+            industry_name = str(industry.get("name") or industry.get("title") or industry.get("industry_name") or "未知行业")
+        else:
+            # 确保industry有name属性（避免 str(industry) 变成 "{'id':...,'name':...}" 这种 dict 字符串）
+            industry_name = getattr(industry, "name", None) or getattr(industry, "title", None) or str(industry)
 
         task_result.progress = {"stage": "获取行业信息", "progress": 40}
 
@@ -367,14 +586,66 @@ async def execute_generate_draft_task(
             for db_id in database_ids:
                 database = industry_service.get_database_by_id(db_id)
                 if database:
-                    database_names.append(getattr(database, 'name', str(database)))
+                    if isinstance(database, dict):
+                        db_name = database.get("name") or database.get("title") or database.get("database_name")
+                        database_names.append(str(db_name or database))
+                    else:
+                        database_names.append(
+                            getattr(database, "name", None)
+                            or getattr(database, "title", None)
+                            or str(database)
+                        )
 
         task_result.progress = {"stage": "获取数据库信息", "progress": 60}
 
         # 4. 创建草稿生成Agent
         llm_service = task_manager._get_llm_service()
-        # TODO: 从配置或服务中获取HybridRetriever实例
+        # 获取 HybridRetriever 实例
         hybrid_retriever = None
+        try:
+            # 优先从 outline_id 推导 knowledge_base_id（与前端 chat RAG 一致）：
+            # - 通过 outline_sources 中的 uploaded_file source_id(document_id)
+            # - 生成 kb_doc_{document_uuid.hex[:16]}
+            #
+            # 注意：outline.database_ids 通常是“行业数据库/数据集”ID（UUID），并不一定等同于 knowledge_base_id。
+            outline_lookup_id = outline_id or str(optimized_outline.original_outline_id)
+
+            knowledge_base_id: str | None = None
+            try:
+                from src.interfaces.api.routes.frontend_adapter.chat_routes import (
+                    _get_knowledge_base_ids_from_outline_id,
+                )
+
+                kb_ids = _get_knowledge_base_ids_from_outline_id(str(outline_lookup_id))
+                if kb_ids:
+                    knowledge_base_id = kb_ids if len(kb_ids) > 1 else kb_ids[0]
+            except Exception as e:
+                logger.debug("从outline_id推导knowledge_base_id失败（将尝试回退路径）: %s", e)
+
+            # 重要：不要把 outline.database_ids（通常是“行业数据库/数据集”的 UUID）误当作 knowledge_base_id。
+            # 否则会生成类似 kb_<uuid-with-dashes>_metadata 的表名，SQLite 会因 "-" 语法错误而失败。
+            #
+            # 如果 outline_id 无法推导出 kb_id（outline_sources 未维护 / 未上传文件），
+            # 这里保持 knowledge_base_id=None，让下游 get_hybrid_retriever 走“自动发现可用 KB”兜底策略。
+
+            # 无论是否推导出 knowledge_base_id，都尝试创建检索器：
+            # - kb_id 存在：使用对应的 kb_{knowledge_base_id}_vector / kb_{knowledge_base_id} bm25 等
+            # - kb_id 不存在：走默认索引/默认 collection（满足“前端不走来源选择/上传也要能召回”的正式交付需求）
+            #
+            # 说明：get_hybrid_retriever 支持 knowledge_base_id=None；此前这里没调用导致 hybrid_retriever=None，
+            # DraftGeneratorAgent 会视为“禁用RAG”，从而出现你反馈的“生成过程没用RAG/BM25”。
+            from src.interfaces.api.routes.draft_mvp import get_hybrid_retriever
+
+            hybrid_retriever = get_hybrid_retriever(knowledge_base_id=knowledge_base_id)
+            logger.info(
+                "HybridRetriever 初始化成功: kb_id=%s",
+                knowledge_base_id or "默认",
+            )
+        except ImportError as imp_err:
+            logger.warning("无法导入 HybridRetriever 相关模块: %s", imp_err)
+        except Exception as retriever_err:
+            logger.warning("初始化 HybridRetriever 失败，将跳过素材检索: %s", retriever_err)
+
         # 确保参数类型正确
         agent = create_draft_generator_agent(
             llm_service=llm_service,
@@ -387,7 +658,10 @@ async def execute_generate_draft_task(
         task_result.progress = {"stage": "创建生成Agent", "progress": 80}
 
         # 5. 生成草稿
-        draft = agent.generate_draft(
+        # 注意：agent.generate_draft 是同步方法，在 Arq/async 环境中直接调用会检测到运行中的事件循环并失败。
+        # 统一通过工作线程执行，避免阻塞事件循环并规避该保护逻辑。
+        draft = await asyncio.to_thread(
+            agent.generate_draft,
             optimized_outline=optimized_outline,  # type: ignore[arg-type]
             industry_name=industry_name,
             database_names=database_names,
@@ -399,17 +673,58 @@ async def execute_generate_draft_task(
 
         task_result.progress = {"stage": "生成完成", "progress": 100}
 
-        # 6. 构建任务结果
+        # 6. 落库保存草稿 + 自动导出 HTML（对齐正式流程的轮询/交付）
+        html_file_path = None
+        try:
+            from src.application.services.draft_service import DraftService
+
+            # 使用固定的测试用户ID(后续版本将从认证中获取)
+            test_user_id = "00000000-0000-0000-0000-000000000001"
+            DraftService().save_draft(draft, test_user_id)
+        except Exception as save_err:
+            logger.warning("草稿生成完成但保存到数据库失败: %s", save_err, exc_info=True)
+
+        try:
+            from src.application.services.html_export_service import HTMLExportService
+
+            html_file_path = HTMLExportService().export_draft_to_html(
+                draft=draft,
+                output_dir="data/output/final",
+                include_appendix=True,
+                overwrite_latest=True,
+            )
+        except Exception as export_err:
+            logger.warning("草稿生成完成但HTML导出失败: %s", export_err, exc_info=True)
+
+        # 7. 构建任务结果
         end_time = datetime.now()
         task_result.status = TaskStatus.COMPLETED
         task_result.end_time = end_time
+
         task_result.result = {
             "draft_id": str(draft.id),
             "draft_title": draft.title,
             "draft_status": draft.status.value,
             "total_sections": len(draft.sections),
+            "outline_id": outline_id or str(optimized_outline.original_outline_id),
+            "optimized_outline_id": optimized_outline_id,
+            "html_file_path": str(html_file_path) if html_file_path else None,
             "created_at": draft.created_at.isoformat(),
         }
+
+        # 持久化 COMPLETED（轮询端可从 workflow_status.step_data 兜底拿到 draft_id/html_file_path）
+        workflow_id = outline_id or str(optimized_outline.original_outline_id)
+        _upsert_workflow_status(
+            str(workflow_id),
+            current_status="step4_generated",
+            step4_status="completed",
+            step_data_patch={
+                "draft_task_id": task_id,
+                "draft_id": str(draft.id),
+                "html_file_path": str(html_file_path) if html_file_path else None,
+                "optimized_outline_id": optimized_outline_id,
+            },
+        )
 
         logger.info(
             f"草稿生成任务完成: {task_id}, 草稿ID: {draft.id}, 标题: {draft.title}"
@@ -425,6 +740,29 @@ async def execute_generate_draft_task(
         task_result.status = TaskStatus.FAILED
         task_result.end_time = end_time
         task_result.error = error_msg
+        if outline_id:
+            _upsert_workflow_status(
+                str(outline_id),
+                current_status="step4_failed",
+                step4_status="failed",
+                step_data_patch={"draft_task_id": task_id, "error": error_msg},
+            )
+        return task_result.to_dict()
+
+    except asyncio.CancelledError:
+        # 任务被取消
+        logger.info(f"草稿生成任务被取消: task_id={task_id}")
+        end_time = datetime.now()
+        task_result.status = TaskStatus.CANCELLED
+        task_result.end_time = end_time
+        task_result.error = "任务被取消"
+        if outline_id:
+            _upsert_workflow_status(
+                str(outline_id),
+                current_status="step4_cancelled",
+                step4_status="cancelled",
+                step_data_patch={"draft_task_id": task_id, "error": "任务被取消"},
+            )
         return task_result.to_dict()
 
     except Exception as e:
@@ -435,6 +773,13 @@ async def execute_generate_draft_task(
         task_result.status = TaskStatus.FAILED
         task_result.end_time = end_time
         task_result.error = error_msg
+        if outline_id:
+            _upsert_workflow_status(
+                str(outline_id),
+                current_status="step4_failed",
+                step4_status="failed",
+                step_data_patch={"draft_task_id": task_id, "error": error_msg},
+            )
         return task_result.to_dict()
 
 
@@ -461,6 +806,7 @@ class WorkerSettings:
 async def generate_draft_async(
     optimized_outline_id: str,
     industry_id: str,
+    outline_id: str | None = None,
     database_ids: list[str] | None = None,
     report_type: str | None = None,
     language: str | None = None,
@@ -486,6 +832,7 @@ async def generate_draft_async(
     return await task_manager.generate_draft_task(
         optimized_outline_id=optimized_outline_id,
         industry_id=industry_id,
+        outline_id=outline_id,
         database_ids=database_ids,
         report_type=report_type,
         language=language,

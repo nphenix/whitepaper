@@ -68,7 +68,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             响应对象
         """
         # 获取客户端IP
-        client_ip = request.client.host if request.client else "unknown"
+        # 优先从HTTP头获取真实IP（适用于反向代理场景，如Nginx）
+        # 如果不存在，则使用直接连接的客户端IP
+        client_ip = self._get_client_ip(request)
         path = request.url.path
 
         # 跳过某些路径的限流(如健康检查,文档等)
@@ -101,6 +103,41 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         # 继续处理请求
         return await call_next(request)
 
+    def _get_client_ip(self, request: Request) -> str:
+        """获取客户端真实IP地址
+        
+        优先级：
+        1. X-Forwarded-For 头（第一个IP，适用于反向代理）
+        2. X-Real-IP 头（适用于Nginx等反向代理）
+        3. request.client.host（直接连接的客户端IP）
+        
+        Args:
+            request: FastAPI 请求对象
+            
+        Returns:
+            客户端IP地址字符串
+        """
+        # 1. 检查 X-Forwarded-For 头（可能包含多个IP，取第一个）
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # X-Forwarded-For 格式：client, proxy1, proxy2
+            # 取第一个IP（真实客户端IP）
+            first_ip = forwarded_for.split(",")[0].strip()
+            if first_ip:
+                return first_ip
+        
+        # 2. 检查 X-Real-IP 头（Nginx等反向代理常用）
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+        
+        # 3. 使用直接连接的客户端IP（本地开发或直连场景）
+        if request.client:
+            return request.client.host
+        
+        # 4. 兜底：未知IP
+        return "unknown"
+    
     def _should_skip_rate_limit(self, path: str) -> bool:
         """判断是否应该跳过限流
 
@@ -112,7 +149,16 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         """
         # 跳过健康检查和API文档
         skip_paths = ["/health", "/docs", "/redoc", "/openapi.json"]
-        return any(path.startswith(skip_path) for skip_path in skip_paths)
+        if any(path.startswith(skip_path) for skip_path in skip_paths):
+            return True
+        
+        # 跳过轮询接口（前端需要频繁轮询获取草稿状态）
+        # 这些接口通常不会造成系统负担，且是必要的功能
+        polling_paths = ["/api/draft/", "/api/sources/"]
+        if any(path.startswith(polling_path) for polling_path in polling_paths):
+            return True
+        
+        return False
 
     def _check_rate_limit(self, client_ip: str, path: str) -> bool:
         """检查是否超过限流

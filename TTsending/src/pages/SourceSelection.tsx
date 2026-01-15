@@ -28,10 +28,64 @@ export default function SourceSelection() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadedDocumentIds, setUploadedDocumentIds] = useState<string[]>([]);
+
+  // 数据预处理相关状态
+  const [isPreprocessing, setIsPreprocessing] = useState(false);
+  const [preprocessingProgress, setPreprocessingProgress] = useState<any>(null);
+  const [preprocessingStatus, setPreprocessingStatus] = useState<any>(null);
+  const [showPreprocessingProgress, setShowPreprocessingProgress] = useState(false);
 
   useEffect(() => {
     fetchSources();
+    fetchPreprocessingStatus();
   }, [outlineId]);
+
+  const fetchPreprocessingStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/data-preprocessing/status`);
+      const data = await response.json();
+      if (data.success) {
+        setPreprocessingStatus(data.data);
+      }
+    } catch (error) {
+      console.error('获取预处理状态失败:', error);
+    }
+  };
+
+  const handleDataPreprocessing = async () => {
+    if (!confirm('确定要执行数据预处理吗？这将执行完整流程：MinerU转换 → LLM广告清洗 → 图表转JSON。')) {
+      return;
+    }
+
+    setIsPreprocessing(true);
+    setShowPreprocessingProgress(true);
+    setPreprocessingProgress(null);
+
+    try {
+      const response = await fetch(`${API_URL}/data-preprocessing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+      setPreprocessingProgress(data);
+
+      if (data.success) {
+        // 刷新状态
+        await fetchPreprocessingStatus();
+      }
+    } catch (error) {
+      console.error('数据预处理失败:', error);
+      setPreprocessingProgress({
+        success: false,
+        message: `预处理失败: ${error}`,
+        error_details: String(error)
+      });
+    } finally {
+      setIsPreprocessing(false);
+    }
+  };
 
   const fetchSources = async () => {
     // Use mock energy storage data
@@ -120,7 +174,8 @@ export default function SourceSelection() {
       formData.append('file', file);
 
       try {
-        const response = await fetch(`${API_URL}/upload`, {
+        const uploadUrl = outlineId ? `${API_URL}/upload?outline_id=${encodeURIComponent(outlineId)}` : `${API_URL}/upload`;
+        const response = await fetch(uploadUrl, {
           method: 'POST',
           body: formData
         });
@@ -128,6 +183,10 @@ export default function SourceSelection() {
         const data = await response.json();
         if (response.ok && data?.success) {
           console.log('File uploaded:', data?.data?.file);
+          const docId = data?.data?.file?.id as string | undefined;
+          if (docId && typeof docId === 'string') {
+            setUploadedDocumentIds(prev => (prev.includes(docId) ? prev : [...prev, docId]));
+          }
         } else {
           const msg = data?.error || data?.message || `上传失败: ${file.name}`;
           setUploadError(msg);
@@ -151,16 +210,8 @@ export default function SourceSelection() {
     // 关键：先导航到 final 页面，再异步触发生成，避免等待 LLM 生成导致 e2e 超时
     navigate(`/final?id=${currentOutlineId}`, { state: { outlineId: currentOutlineId, config } });
 
-    // 后台保存来源选择（失败不阻断）
-    void fetch(`${API_URL}/sources/${currentOutlineId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selectedSources, customUrls })
-    }).catch((error) => {
-      console.warn('保存来源选择失败:', error);
-    });
-
     // 后台触发草稿生成（由 FinalView 轮询 /draft 获取结果）
+    // 注意：不使用界面中的文献，只使用知识库RAG召回和LLM优化
     void fetch(`${API_URL}/generate-draft/${currentOutlineId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
@@ -338,7 +389,7 @@ export default function SourceSelection() {
                         <span className="text-xs text-slate-500 flex items-center gap-1">
                           <span className="font-medium text-blue-600">被引 {source.cited}</span>
                         </span>
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                           }}
@@ -353,6 +404,189 @@ export default function SourceSelection() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* 数据预处理区域 */}
+          <div className="mt-8 border-t-2 border-dashed border-slate-200 pt-8">
+            <h2 className="text-xl font-semibold mb-1 text-slate-900">
+              数据预处理
+            </h2>
+            <p className="text-sm text-slate-500 mb-5">执行完整预处理流程：MinerU转换 → LLM广告清洗 → 图表转JSON</p>
+
+            {/* 当前状态显示 */}
+            {preprocessingStatus && (
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className={`p-4 rounded-xl border-2 ${
+                  preprocessingStatus.cleaned_documents > 0
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <div className="text-2xl font-bold text-slate-900">{preprocessingStatus.cleaned_documents}</div>
+                  <div className="text-xs text-slate-600">清洗文档数</div>
+                </div>
+                <div className={`p-4 rounded-xl border-2 ${
+                  preprocessingStatus.vector_index_available
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {preprocessingStatus.vector_index_available ? '✓' : '✗'}
+                  </div>
+                  <div className="text-xs text-slate-600">向量索引</div>
+                </div>
+                <div className={`p-4 rounded-xl border-2 ${
+                  preprocessingStatus.bm25_index_available
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {preprocessingStatus.bm25_index_available ? '✓' : '✗'}
+                  </div>
+                  <div className="text-xs text-slate-600">BM25索引</div>
+                </div>
+                <div className={`p-4 rounded-xl border-2 ${
+                  preprocessingStatus.chart_json_files > 0
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <div className="text-2xl font-bold text-slate-900">{preprocessingStatus.chart_json_files}</div>
+                  <div className="text-xs text-slate-600">图表JSON</div>
+                </div>
+              </div>
+            )}
+
+            {/* 进度显示 */}
+            {showPreprocessingProgress && preprocessingProgress && (
+              <div className="mb-6 p-6 bg-blue-50/50 rounded-2xl border-2 border-blue-200">
+                <h3 className="font-semibold text-slate-900 mb-4">预处理进度</h3>
+
+                {/* 整体结果 */}
+                <div className={`mb-4 p-4 rounded-xl ${
+                  preprocessingProgress.success
+                    ? 'bg-green-100 border border-green-300'
+                    : 'bg-red-100 border border-red-300'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{preprocessingProgress.success ? '✅' : '❌'}</span>
+                    <span className="font-medium">{preprocessingProgress.message}</span>
+                  </div>
+                </div>
+
+                {/* 步骤进度 */}
+                <div className="space-y-3">
+                  {preprocessingProgress.data?.source_files && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-green-500 text-white">
+                        ✓
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-slate-700">
+                            源文件扫描
+                          </span>
+                          <span className="text-xs text-slate-500">{preprocessingProgress.data.source_files} 个文件</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {preprocessingProgress.data?.processed_count !== undefined && (
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        preprocessingProgress.data.processed_count > 0
+                          ? 'bg-green-500 text-white'
+                          : 'bg-slate-200 text-slate-500'
+                      }`}>
+                        {preprocessingProgress.data.processed_count > 0 ? '✓' : '○'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-slate-700">
+                            MinerU转换
+                          </span>
+                          <span className="text-xs text-slate-500">{preprocessingProgress.data.processed_count} 个文档</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {preprocessingProgress.data?.cleaned_count !== undefined && (
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        preprocessingProgress.data.cleaned_count > 0
+                          ? 'bg-green-500 text-white'
+                          : 'bg-slate-200 text-slate-500'
+                      }`}>
+                        {preprocessingProgress.data.cleaned_count > 0 ? '✓' : '○'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-slate-700">
+                            LLM广告清洗
+                          </span>
+                          <span className="text-xs text-slate-500">{preprocessingProgress.data.cleaned_count} 个文档</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {preprocessingProgress.data?.chart_json_count !== undefined && (
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        preprocessingProgress.data.chart_json_count > 0
+                          ? 'bg-green-500 text-white'
+                          : 'bg-slate-200 text-slate-500'
+                      }`}>
+                        {preprocessingProgress.data.chart_json_count > 0 ? '✓' : '○'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-slate-700">
+                            图表转JSON
+                          </span>
+                          <span className="text-xs text-slate-500">{preprocessingProgress.data.chart_json_count} 个JSON</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 错误详情 */}
+                {preprocessingProgress.error_details && (
+                  <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-200">
+                    <p className="text-xs font-medium text-red-700 mb-1">错误详情：</p>
+                    <p className="text-xs text-red-600 whitespace-pre-wrap">{preprocessingProgress.error_details}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 预处理按钮 */}
+            <button
+              onClick={handleDataPreprocessing}
+              disabled={isPreprocessing}
+              className={`px-6 py-3 text-sm font-semibold rounded-xl shadow-lg transition-all ${
+                isPreprocessing
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#4A90E2] via-[#2F6BCD] to-[#1E5799] text-white hover:shadow-[0_16px_40px_rgba(36,99,214,0.35)]'
+              }`}
+            >
+              {isPreprocessing ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  数据预处理中...
+                </span>
+              ) : (
+                '⚡ 数据预处理'
+              )}
+            </button>
+
+            <p className="text-xs text-slate-500 mt-2">
+              从 data/source/uploads 读取PDF/DOCX文件，执行完整预处理流程
+            </p>
           </div>
         </div>
 

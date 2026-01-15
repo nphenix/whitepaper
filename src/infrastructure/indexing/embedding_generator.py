@@ -60,6 +60,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         self,
         langchain_embedding: Any,
         model_name: str = "langchain-embedding",
+        dimension: int | None = None,
     ) -> None:
         """
         初始化适配器
@@ -67,6 +68,7 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Args:
             langchain_embedding: LangChain embedding 模型实例
             model_name: 模型名称, 用于标识
+            dimension: 向量维度, 如果提供则直接使用, 否则尝试自动检测
         """
         if not LLAMA_INDEX_AVAILABLE:
             msg = "LlamaIndex is not available. Please install llama-index package."
@@ -78,16 +80,32 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         self._langchain_embedding = langchain_embedding
 
         # 尝试获取向量维度
-        try:
-            # 使用一个测试文本获取维度
-            test_embedding = langchain_embedding.embed_query("test")
-            self._dimension = len(test_embedding)
-        except Exception:
-            # 如果失败, 使用默认值
-            self._dimension = 1536
-            logger.warning(
-                "无法自动检测 embedding 维度, 使用默认值: %s", self._dimension
-            )
+        if dimension is not None:
+            # 如果提供了维度, 直接使用
+            self._dimension = dimension
+            logger.debug("使用提供的 embedding 维度: %s", self._dimension)
+        else:
+            # 尝试自动检测维度
+            try:
+                # 优先尝试使用 encode 方法(FlagModel)
+                if hasattr(langchain_embedding, "encode"):
+                    test_embedding = langchain_embedding.encode(["test"])
+                    if hasattr(test_embedding, "tolist"):
+                        test_embedding = test_embedding.tolist()
+                    self._dimension = len(test_embedding[0]) if isinstance(test_embedding, list) and len(test_embedding) > 0 else len(test_embedding)
+                else:
+                    # 使用标准的 embed_query 方法
+                    test_embedding = langchain_embedding.embed_query("test")
+                    self._dimension = len(test_embedding)
+                logger.debug("自动检测到 embedding 维度: %s", self._dimension)
+            except Exception as e:
+                # 如果失败, 使用默认值 1024 (bge-m3 的默认维度)
+                self._dimension = 1024
+                logger.warning(
+                    "无法自动检测 embedding 维度, 使用默认值: %s (错误: %s)",
+                    self._dimension,
+                    str(e)
+                )
 
     @property
     def dimension(self) -> int:
@@ -104,6 +122,10 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量
         """
+        # 支持 FlagModel 的 encode 方法和标准的 embed_query 方法
+        if hasattr(self._langchain_embedding, "encode"):
+            result = self._langchain_embedding.encode([query])
+            return result[0].tolist()  # type: ignore
         return self._langchain_embedding.embed_query(query)  # type: ignore
 
     def _get_text_embedding(self, text: str) -> list[float]:
@@ -116,6 +138,10 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量
         """
+        # 支持 FlagModel 的 encode 方法和标准的 embed_query 方法
+        if hasattr(self._langchain_embedding, "encode"):
+            result = self._langchain_embedding.encode([text])
+            return result[0].tolist()  # type: ignore
         return self._langchain_embedding.embed_query(text)  # type: ignore
 
     def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
@@ -128,6 +154,10 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
         Returns:
             嵌入向量列表
         """
+        # 支持 FlagModel 的 encode 方法和标准的 embed_documents 方法
+        if hasattr(self._langchain_embedding, "encode"):
+            result = self._langchain_embedding.encode(texts)
+            return result.tolist()  # type: ignore
         return self._langchain_embedding.embed_documents(texts)  # type: ignore
 
     async def _aget_query_embedding(self, query: str) -> list[float]:
@@ -159,7 +189,10 @@ class LangChainEmbeddingAdapter(BaseEmbedding):
             嵌入向量列表
         """
         # 检查是否支持异步方法
-        if hasattr(self._langchain_embedding, "aembed_documents"):
+        if hasattr(self._langchain_embedding, "aencode"):
+            result = await self._langchain_embedding.aencode(texts)  # type: ignore[no-any-return]
+            return result.tolist()  # type: ignore
+        elif hasattr(self._langchain_embedding, "aembed_documents"):
             return await self._langchain_embedding.aembed_documents(texts)  # type: ignore[no-any-return]
         # 回退到同步方法
         return self._get_text_embeddings(texts)
@@ -293,17 +326,21 @@ class EmbeddingGenerator:
 
                 # 将 LangChain embedding 模型包装为 LlamaIndex BaseEmbedding
                 # 使用适配器类, 兼容 LlamaIndex 接口
-                # 获取模型名称,如果配置不存在或无效则使用默认值
+                # 获取模型名称和维度,如果配置不存在或无效则使用默认值
                 model_name = "langchain-embedding"
+                dimension = None
                 if llm_service._config and hasattr(llm_service._config, "embedding"):
-                    config_model_name = getattr(
-                        llm_service._config.embedding, "model_name", None
-                    )
+                    embedding_config = llm_service._config.embedding
+                    config_model_name = getattr(embedding_config, "model_name", None)
                     if config_model_name and isinstance(config_model_name, str):
                         model_name = config_model_name
+                    # 从配置中获取维度
+                    config_dimension = getattr(embedding_config, "dimension", None)
+                    if config_dimension and isinstance(config_dimension, int):
+                        dimension = config_dimension
 
                 embedding_model = LangChainEmbeddingAdapter(
-                    langchain_embedding, model_name=model_name
+                    langchain_embedding, model_name=model_name, dimension=dimension
                 )
                 logger.info(
                     "从 llm_service 获取 embedding 模型(使用 settings.py 统一配置)并包装为 LlamaIndex BaseEmbedding"
